@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>SecureScan AI Audit Report</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 20mm 15mm 20mm 15mm;
+      @top-center {
+        content: "Developer-assistance report — not a security certificate or legal opinion.";
+        font-size: 8pt;
+        color: #64748b;
+        border-bottom: 1px solid #e2e8f0;
+        padding-bottom: 4px;
+        font-family: sans-serif;
+      }
+      @bottom-right {
+        content: "Page " counter(page) " of " counter(pages);
+        font-size: 8pt;
+        color: #64748b;
+        font-family: sans-serif;
+      }
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #0f172a;
+      line-height: 1.5;
+      font-size: 10pt;
+    }
+    .page-break {
+      page-break-before: always;
+    }
+    .cover {
+      text-align: center;
+      padding-top: 60px;
+      padding-bottom: 60px;
+    }
+    .cover h1 {
+      font-size: 26pt;
+      color: #0f172a;
+      margin-bottom: 10px;
+    }
+    .cover .subtitle {
+      font-size: 14pt;
+      color: #0284c7;
+      margin-bottom: 40px;
+    }
+    .meta-box {
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      padding: 16px;
+      margin: 20px auto;
+      text-align: left;
+      background: #f8fafc;
+      width: 85%;
+    }
+    .meta-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .meta-label {
+      font-weight: bold;
+      color: #475569;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 8pt;
+      font-weight: 600;
+    }
+    .badge-critical { background: #fee2e2; color: #991b1b; }
+    .badge-high { background: #ffedd5; color: #9a3412; }
+    .badge-medium { background: #fef9c3; color: #854d0e; }
+    .badge-low { background: #e0f2fe; color: #075985; }
+    .badge-pass { background: #dcfce7; color: #166534; }
+    .badge-gap { background: #fef3c7; color: #92400e; }
+    .badge-unverified { background: #f1f5f9; color: #475569; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+      margin-bottom: 16px;
+      font-size: 9pt;
+    }
+    th, td {
+      border: 1px solid #cbd5e1;
+      padding: 6px 8px;
+      text-align: left;
+    }
+    th {
+      background: #f1f5f9;
+      font-weight: 600;
+      color: #334155;
+    }
+    .snippet {
+      font-family: monospace;
+      font-size: 8pt;
+      background: #1e293b;
+      color: #f8fafc;
+      padding: 8px;
+      border-radius: 4px;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .disclaimer-box {
+      border-left: 4px solid #f59e0b;
+      background: #fffbeb;
+      padding: 10px 14px;
+      margin: 14px 0;
+      font-size: 8.5pt;
+      color: #92400e;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Cover Page -->
+  <div class="cover">
+    <div style="text-align: center; margin-bottom: 16px;">
+      <img src="assets/logo.jpg" alt="SecureScan AI Logo" style="width: 64px; height: 64px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);" />
+    </div>
+    <h1>SecureScan AI</h1>
+    <div class="subtitle">Security & DPDP Readiness Audit Report</div>
+    
+    <div class="meta-box">
+      <div class="meta-row"><span class="meta-label">Target Repository:</span> <span>{{ repository.url }}</span></div>
+      <div class="meta-row"><span class="meta-label">Branch:</span> <span>{{ repository.branch }}</span></div>
+      <div class="meta-row"><span class="meta-label">Pinned Commit SHA:</span> <code>{{ repository.commit_sha }}</code></div>
+      <div class="meta-row"><span class="meta-label">Audit Timestamp:</span> <span>{{ metadata.created_at }}</span></div>
+      <div class="meta-row"><span class="meta-label">Statutory As-of Date:</span> <span>{{ metadata.as_of_date }}</span></div>
+    </div>
+
+    <div class="disclaimer-box" style="width: 85%; margin: 20px auto; text-align: left;">
+      <strong>Mandatory Disclaimer:</strong> {{ metadata.mandatory_header }}
+    </div>
+  </div>
+
+  <!-- Page 2: Executive Summary & Methodology -->
+  <div class="page-break"></div>
+  <h2>1. Executive Summary</h2>
+  <p>Counts and coverage summary (no headline grade):</p>
+  <table>
+    <tr><th>Metric</th><th>Value</th></tr>
+    <tr><td>Total Findings Detected</td><td><strong>{{ executive_summary.total_findings }}</strong></td></tr>
+    <tr><td>Confirmed Findings (High/Confirmed Confidence)</td><td>{{ executive_summary.confirmed_count }}</td></tr>
+    <tr><td>Potential Findings (Heuristic/Contextual Gaps)</td><td>{{ executive_summary.potential_count }}</td></tr>
+    <tr><td>Critical Severity Findings</td><td><span class="badge badge-critical">{{ executive_summary.severity_counts.CRITICAL }}</span></td></tr>
+    <tr><td>High Severity Findings</td><td><span class="badge badge-high">{{ executive_summary.severity_counts.HIGH }}</span></td></tr>
+    <tr><td>Medium Severity Findings</td><td><span class="badge badge-medium">{{ executive_summary.severity_counts.MEDIUM }}</span></td></tr>
+    <tr><td>Low Severity Findings</td><td><span class="badge badge-low">{{ executive_summary.severity_counts.LOW }}</span></td></tr>
+    <tr><td>Security Controls Coverage Ratio</td><td><strong>{{ executive_summary.security_coverage_ratio }}</strong> (Evidenced / Applicable controls)</td></tr>
+  </table>
+
+  <h2>2. Methodology & Exclusions</h2>
+  <p><strong>Sandbox Execution:</strong> {{ methodology_and_exclusions.scanner_sandbox }}</p>
+  <p><strong>Repository Execution Policy:</strong> {{ methodology_and_exclusions.repo_execution_policy }}</p>
+  <p><strong>Exclusions & Limitations:</strong></p>
+  <ul>
+    {% for lim in methodology_and_exclusions.limitations %}
+    <li>{{ lim }}</li>
+    {% endfor %}
+  </ul>
+
+  <!-- Page 3: Security Findings Table -->
+  <div class="page-break"></div>
+  <h2>3. Security Findings</h2>
+  {% if findings|length == 0 %}
+  <p><em>No findings from checks that ran. {{ security_summary.not_verified }} controls could not be verified.</em></p>
+  {% else %}
+  <table>
+    <thead>
+      <tr>
+        <th>Severity</th>
+        <th>Title</th>
+        <th>Scanner</th>
+        <th>File & Line</th>
+        <th>OWASP</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for f in findings %}
+      <tr>
+        <td><span class="badge badge-{{ f.severity|lower }}">{{ f.severity }}</span></td>
+        <td><strong>{{ f.title }}</strong><br><small>{{ f.rule_id }}</small></td>
+        <td>{{ f.scanner_name }} {{ f.scanner_version }}</td>
+        <td><code>{{ f.file_path }}:{{ f.start_line }}</code></td>
+        <td>{{ f.owasp_refs|join(", ") }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <!-- Per-finding details -->
+  {% for f in findings %}
+  <div style="border: 1px solid #cbd5e1; border-radius: 6px; padding: 12px; margin-top: 14px; background: #fff;">
+    <h3>{{ f.title }} <span class="badge badge-{{ f.severity|lower }}">{{ f.severity }}</span></h3>
+    <p><strong>File:</strong> <code>{{ f.file_path }}:{{ f.start_line }}-{{ f.end_line }}</code> | <strong>Scanner:</strong> {{ f.scanner_name }}</p>
+    {% if f.redacted_snippet %}
+    <p><strong>Redacted Evidence Snippet:</strong></p>
+    <div class="snippet">{{ f.redacted_snippet }}</div>
+    {% endif %}
+    <p><strong>Technical Fix:</strong> {{ f.technical_fix }}</p>
+    <p><strong>Validation Method:</strong> {{ f.validation_steps }}</p>
+  </div>
+  {% endfor %}
+
+  <!-- Page 4: OWASP Coverage Matrix -->
+  <div class="page-break"></div>
+  <h2>4. Security Controls & OWASP Coverage Matrix</h2>
+  <p>Evaluated across 32 baseline controls:</p>
+  <table>
+    <thead>
+      <tr><th>ID</th><th>State</th><th>Rationale</th></tr>
+    </thead>
+    <tbody>
+      {% for sc in security_controls %}
+      <tr>
+        <td><strong>{{ sc.control_id }}</strong></td>
+        <td><span class="badge badge-{{ 'pass' if sc.state == 'PASS_EVIDENCED' else 'gap' if sc.state == 'POTENTIAL_GAP' else 'critical' if sc.state == 'FAIL_EVIDENCED' else 'unverified' }}">{{ sc.state }}</span></td>
+        <td>{{ sc.rationale }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- Page 5: DPDP Matrix -->
+  <div class="page-break"></div>
+  <h2>5. DPDP Act 2023 / Rules 2025 Readiness Matrix</h2>
+  <div class="disclaimer-box">
+    <strong>Notice:</strong> Statutory commencement computed relative to as-of date ({{ metadata.as_of_date }}). Upcoming duties are not active violations.
+  </div>
+  <table>
+    <thead>
+      <tr><th>Control</th><th>Title</th><th>Readiness</th><th>Effective Status</th><th>Citation</th></tr>
+    </thead>
+    <tbody>
+      {% for dc in dpdp_controls %}
+      <tr>
+        <td><strong>{{ dc.control_id }}</strong></td>
+        <td>{{ dc.title }}</td>
+        <td><span class="badge badge-{{ 'pass' if dc.state == 'evidence_supports' else 'gap' }}">{{ dc.state }}</span></td>
+        <td>{{ dc.effective_status }} ({{ dc.effective_date }})</td>
+        <td><small>{{ dc.citation }}</small></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- Page 6: Legal Appendix & Penalties -->
+  <div class="page-break"></div>
+  <h2>6. Legal Appendix: Statutory Penalty Reference</h2>
+  <div class="disclaimer-box">
+    <strong>Mandatory Statutory Caveat:</strong> {{ legal_exposure.disclaimer }}
+    <br><em>SecureScan AI does not estimate, predict, calculate, or sum penalty amounts. Figures shown below represent statutory maximum ceilings enacted in the Schedule to the DPDP Act 2023.</em>
+  </div>
+  <table>
+    <thead>
+      <tr><th>Item</th><th>Related Section</th><th>Statutory Maximum Ceiling</th><th>Caveat</th></tr>
+    </thead>
+    <tbody>
+      {% for cat in legal_exposure.categories %}
+      <tr>
+        <td>Item {{ cat.schedule_item }}</td>
+        <td>{{ cat.related_act_section }}</td>
+        <td><strong>{{ cat.statutory_ceiling_inr }}</strong></td>
+        <td><small>{{ cat.caveat }}</small></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- Page 7: Remediation Plan & Gaps -->
+  <div class="page-break"></div>
+  <h2>7. Prioritized Remediation Plan</h2>
+  <h3>Engineering Actions</h3>
+  <ul>
+    {% for eng in remediation_plan.ENGINEERING %}
+    <li><strong>[{{ eng.priority }}] {{ eng.title }} ({{ eng.target_id }}):</strong> {{ eng.steps|join(" ") }} <em>Validation:</em> {{ eng.validation_method }}</li>
+    {% else %}
+    <li><em>No immediate engineering actions required from current static checks.</em></li>
+    {% endfor %}
+  </ul>
+
+  <h3>Documentation & Policy Actions</h3>
+  <ul>
+    {% for doc in remediation_plan.DOCUMENTATION %}
+    <li><strong>[{{ doc.priority }}] {{ doc.title }}:</strong> {{ doc.steps|join(" ") }}</li>
+    {% else %}
+    <li><em>No documentation actions identified.</em></li>
+    {% endfor %}
+  </ul>
+
+  <h3>Organizational Actions</h3>
+  <ul>
+    {% for org in remediation_plan.ORGANIZATIONAL %}
+    <li><strong>[{{ org.priority }}] {{ org.title }}:</strong> {{ org.steps|join(" ") }}</li>
+    {% else %}
+    <li><em>No organizational actions identified.</em></li>
+    {% endfor %}
+  </ul>
+
+  <h2>8. Evidence Gaps & Next Steps</h2>
+  <p>The following controls could not be definitively verified from repository source code alone:</p>
+  <ul>
+    {% for gap in evidence_gaps %}
+    <li><strong>{{ gap.control_id }} ({{ gap.state }}):</strong> {{ gap.rationale }}</li>
+    {% endfor %}
+  </ul>
+
+</body>
+</html>
+
