@@ -1,0 +1,181 @@
+{
+  "metadata": {
+    "audit_id": "adcdb29b-b663-4ddc-b6fb-209548269d5d",
+    "created_at": "2026-11-14T13:52:53.903595",
+    "status": "REPORT_READY",
+    "stage": "REPORT_READY",
+    "scopes": [
+      "security"
+    ],
+    "mandatory_header": "Developer-assistance report — not a security certificate or legal opinion.",
+    "as_of_date": "2026-11-14",
+    "report_version": "1.0.0"
+  },
+  "repository": {
+    "id": "83a7daa4-9a74-4921-83c0-c898289f97df",
+    "url": "https://github.com/org/secret-cd26e657",
+    "branch": "main",
+    "commit_sha": "99887766554433221100aabbccddeeff99887766",
+    "languages": [],
+    "frameworks": []
+  },
+  "tool_versions": [],
+  "executive_summary": {
+    "total_findings": 1,
+    "severity_counts": {
+      "CRITICAL": 1,
+      "HIGH": 0,
+      "MEDIUM": 0,
+      "LOW": 0,
+      "INFO": 0
+    },
+    "confirmed_count": 1,
+    "potential_count": 0,
+    "security_coverage_ratio": "0/32",
+    "security_evidenced_controls": 0,
+    "security_applicable_controls": 32,
+    "security_total_controls": 32,
+    "headline_grade": "NONE (Explicitly omitted per FRD §8 / Design §12: counts and coverage over grades)"
+  },
+  "methodology_and_exclusions": {
+    "scanner_sandbox": "Isolated runner with --network=none, non-root user, read-only repository mount, dropped Linux capabilities (Z4).",
+    "repo_execution_policy": "Zero repository code execution. Cloned scripts, install hooks, and test workflows are never executed (Safety Rule 1).",
+    "advisory_resolver": "Separated trusted resolution channel with strict domain allowlists (Z5).",
+    "limitations": [
+      "Static analysis cannot prove the runtime absence of vulnerabilities (Unknown is never Pass).",
+      "Reverse proxies, API gateways, and external IAM providers cannot be observed from repository code alone.",
+      "DPDP readiness evaluation does not constitute a legal opinion or certify statutory compliance."
+    ]
+  },
+  "findings": [
+    {
+      "id": "93892402-6009-4d23-be04-589556c3766b",
+      "fingerprint": "fp-secret-test-report",
+      "rule_id": "aws-access-token",
+      "scanner_name": "gitleaks",
+      "scanner_version": "8.21.2",
+      "title": "AWS Access Key exposed",
+      "description": "AWS access key token detected in code",
+      "category": "secrets",
+      "severity": "CRITICAL",
+      "confidence": "CONFIRMED",
+      "file_path": "backend/config.py",
+      "start_line": 12,
+      "end_line": 12,
+      "cwe_ids": [
+        "CWE-798"
+      ],
+      "owasp_refs": [
+        "A07:2025"
+      ],
+      "redacted_snippet": "AWS_ACCESS_KEY_ID = \"[REDACTED:aws-access-key]\"",
+      "technical_fix": "Revoke key in AWS IAM immediately.",
+      "validation_steps": "Verify with Gitleaks.",
+      "evidence": null
+    }
+  ],
+  "security_controls": [],
+  "security_summary": {
+    "total_controls": 32,
+    "evidenced_pass": 0,
+    "evidenced_fail": 0,
+    "potential_gap": 0,
+    "not_verified": 0,
+    "not_applicable": 0,
+    "error": 0
+  },
+  "dpdp_controls": [],
+  "legal_exposure": {
+    "disclaimer": "Potential legal category; applicability and liability not determined.",
+    "categories": [
+      {
+        "schedule_item": 1,
+        "related_act_section": "Section 8(5)",
+        "statutory_ceiling_inr": "₹250 crore",
+        "obligation": "Breach in observing reasonable security safeguards to prevent personal data breach",
+        "linked_controls": [
+          "DPDP-006",
+          "DPDP-018"
+        ],
+        "caveat": "Potential legal category; applicability and liability not determined."
+      },
+      {
+        "schedule_item": 2,
+        "related_act_section": "Section 8(6)",
+        "statutory_ceiling_inr": "₹200 crore",
+        "obligation": "Breach in giving notice of a personal data breach to the Board and affected Data Principals",
+        "linked_controls": [
+          "DPDP-014"
+        ],
+        "caveat": "Potential legal category; applicability and liability not determined."
+      },
+      {
+        "schedule_item": 3,
+        "related_act_section": "Section 9",
+        "statutory_ceiling_inr": "₹200 crore",
+        "obligation": "Breach in observance of additional obligations in relation to children",
+        "linked_controls": [
+          "DPDP-008",
+          "DPDP-009"
+        ],
+        "caveat": "Potential legal category; applicability and liability not determined."
+      },
+      {
+        "schedule_item": 4,
+        "related_act_section": "Section 10",
+        "statutory_ceiling_inr": "₹150 crore",
+        "obligation": "Breach in observance of additional obligations of Significant Data Fiduciary",
+        "linked_controls": [
+          "DPDP-010"
+        ],
+        "caveat": "Potential legal category; applicability and liability not determined."
+      },
+      {
+        "schedule_item": 5,
+        "related_act_section": "Section 15",
+        "statutory_ceiling_inr": "₹10,000",
+        "obligation": "Breach in observance of duties of Data Principal",
+        "linked_controls": [
+          "DPDP-017"
+        ],
+        "caveat": "Potential legal category; applicability and liability not determined."
+      },
+      {
+        "schedule_item": 6,
+        "related_act_section": "Section 32",
+        "statutory_ceiling_inr": "Up to underlying breach amount",
+        "obligation": "Breach of any term of voluntary undertaking accepted by Board",
+        "linked_controls": [],
+        "caveat": "Potential legal category; applicability and liability not determined."
+      },
+      {
+        "schedule_item": 7,
+        "related_act_section": "Other provisions",
+        "statutory_ceiling_inr": "₹50 crore",
+        "obligation": "Breach of any other provision of Act or Rules",
+        "linked_controls": [
+          "DPDP-001",
+          "DPDP-002",
+          "DPDP-003",
+          "DPDP-004",
+          "DPDP-005",
+          "DPDP-007",
+          "DPDP-011",
+          "DPDP-012",
+          "DPDP-013",
+          "DPDP-015",
+          "DPDP-016"
+        ],
+        "caveat": "Potential legal category; applicability and liability not determined."
+      }
+    ],
+    "fine_prediction_prohibited": true,
+    "summed_fine_prohibited": true
+  },
+  "remediation_plan": {
+    "ENGINEERING": [],
+    "DOCUMENTATION": [],
+    "ORGANIZATIONAL": []
+  },
+  "evidence_gaps": []
+}
