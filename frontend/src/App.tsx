@@ -29,7 +29,6 @@ export const App: React.FC = () => {
                 </span>
               </Link>
               <div className="flex items-center gap-2.5 sm:gap-4 text-xs font-mono text-slate-500">
-                <span className="hidden sm:inline-block">as_of_date: 2026-11-14</span>
                 <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                   <span className="text-[11px] font-semibold">Ready</span>
