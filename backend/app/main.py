@@ -32,13 +32,14 @@ app.add_middleware(SecurityHeadersMiddleware)
 # 2. Rate limiting middleware (Playbook §16)
 app.add_middleware(RateLimitMiddleware)
 
-# 3. CORS middleware with explicit origin allow-list (Playbook §9)
+# 3. CORS middleware with explicit origin allow-list and Vercel regex (Playbook §9)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
+    allow_origin_regex=settings.CORS_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "X-Session-ID", "Authorization", "Accept"],
+    allow_headers=["Content-Type", "X-Session-ID", "Authorization", "Accept", "Origin", "X-Requested-With"],
     expose_headers=["X-RateLimit-Limit", "X-RateLimit-Remaining", "Retry-After"]
 )
 
