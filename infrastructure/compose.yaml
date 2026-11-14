@@ -1,0 +1,92 @@
+name: securescan-ai
+
+services:
+  postgres:
+    image: postgres:16.6-alpine
+    container_name: securescan-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-securescan}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-securescan_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-securescan}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U securescan -d securescan"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7.4.1-alpine
+    container_name: securescan-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/backend.Dockerfile
+    container_name: securescan-api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://securescan:securescan_secret@postgres:5432/securescan
+      REDIS_URL: redis://redis:6379/0
+      ENVIRONMENT: production
+      AS_OF_DATE: "2026-11-14"
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/v1/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  worker:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/worker.Dockerfile
+    container_name: securescan-worker
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://securescan:securescan_secret@postgres:5432/securescan
+      REDIS_URL: redis://redis:6379/0
+      AS_OF_DATE: "2026-11-14"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/frontend.Dockerfile
+    container_name: securescan-web
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+  redis_data:
+

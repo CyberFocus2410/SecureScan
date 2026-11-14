@@ -1,0 +1,37 @@
+# Environment and database
+.env
+*.db
+*.db-journal
+securescan_dev.db
+backend/securescan_dev.db
+
+# Temporary artifacts and worktrees
+tmp/
+temp/
+test_out.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+.venv/
+venv/
+ENV/
+
+# Node / Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDE and OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
