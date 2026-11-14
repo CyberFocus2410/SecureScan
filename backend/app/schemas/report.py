@@ -8,6 +8,8 @@ from pydantic import BaseModel, Field, ConfigDict
 class ReportCreateRequest(BaseModel):
     format: Literal["pdf", "json"] = Field("pdf", description="Requested report format ('pdf' or 'json')")
 
+    model_config = ConfigDict(extra="forbid")
+
 
 class ReportResponse(BaseModel):
     id: UUID

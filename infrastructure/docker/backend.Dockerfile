@@ -17,6 +17,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     shared-mime-info \
     && rm -rf /var/lib/apt/lists/*
 
+# Install gitleaks binary if available for architecture
+RUN (curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz | tar -xz -C /usr/local/bin gitleaks && chmod +x /usr/local/bin/gitleaks) || true
+
 COPY backend/requirements.txt .
 RUN pip install --upgrade pip && pip install -r requirements.txt
 
@@ -26,4 +29,3 @@ COPY policies/ /policies/
 EXPOSE 8000
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
-

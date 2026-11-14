@@ -36,3 +36,75 @@ def test_coverage_calculation_denominator():
     assert summary.evidenced_controls == 2   # 1 PASS + 1 FAIL
     assert summary.coverage_ratio == 0.5     # 2 / 4 = 0.5
     assert summary.not_applicable_count == 1
+
+
+def test_nextjs_framework_security_controls_evaluation(db_session):
+    import uuid
+    from app.services.security_controls import evaluate_security_controls
+    from app.models.models import AuditModel, RepositoryModel, ScannerRunModel
+
+    uid = str(uuid.uuid4())[:8]
+    repo = RepositoryModel(
+        id=f"repo-{uid}",
+        github_owner="test",
+        github_repo=f"test-nextjs-{uid}",
+        canonical_url=f"https://github.com/test/test-nextjs-{uid}",
+        detected_languages=["TypeScript", "JavaScript"],
+        detected_frameworks=["Next.js"]
+    )
+    db_session.add(repo)
+    audit = AuditModel(
+        id=f"audit-{uid}",
+        repository_id=f"repo-{uid}",
+        session_id=str(uuid.uuid4()),
+        status="COMPLETED"
+    )
+    db_session.add(audit)
+
+    # Clean scanner runs
+    for sname in ["gitleaks", "semgrep", "osv-scanner", "custom"]:
+        db_session.add(ScannerRunModel(
+            id=f"run-{sname}-{uid}",
+            audit_id=f"audit-{uid}",
+            scanner=sname,
+            version="1.0.0",
+            status="COMPLETED"
+        ))
+    db_session.commit()
+
+    controls = evaluate_security_controls(
+        db=db_session,
+        audit_id=f"audit-{uid}",
+        detected_languages=["TypeScript", "JavaScript"],
+        detected_frameworks=["Next.js"]
+    )
+
+    assert len(controls) == 32
+    states = {c.control_id: c.state for c in controls}
+
+    # Verify that Next.js client & config controls pass with evidence
+    assert states["SEC-001"] == "PASS_EVIDENCED"
+    assert states["SEC-002"] == "PASS_EVIDENCED"
+    assert states["SEC-003"] == "PASS_EVIDENCED"
+    assert states["SEC-004"] == "PASS_EVIDENCED"
+    assert states["SEC-011"] == "PASS_EVIDENCED"
+    assert states["SEC-016"] == "PASS_EVIDENCED"
+    assert states["SEC-017"] == "PASS_EVIDENCED"
+    assert states["SEC-019"] == "PASS_EVIDENCED"
+    assert states["SEC-020"] == "PASS_EVIDENCED"
+    assert states["SEC-021"] == "PASS_EVIDENCED"
+    assert states["SEC-022"] == "PASS_EVIDENCED"
+    assert states["SEC-024"] == "PASS_EVIDENCED"
+    assert states["SEC-025"] == "PASS_EVIDENCED"
+    assert states["SEC-028"] == "PASS_EVIDENCED"
+    assert states["SEC-030"] == "PASS_EVIDENCED"
+    assert states["SEC-031"] == "PASS_EVIDENCED"
+
+    # Verify conservative controls requiring runtime context remain NOT_VERIFIED
+    assert states["SEC-008"] == "NOT_VERIFIED"
+    assert states["SEC-032"] == "NOT_VERIFIED"
+
+    cov = calculate_security_coverage(controls)
+    # High evidenced ratio (>80%)
+    assert cov.coverage_ratio >= 0.80
+    assert cov.evidenced_controls >= 28

@@ -1,6 +1,10 @@
 """Security primitives: secret redaction and leakage assertions."""
 import re
-from typing import Any
+import hmac
+import hashlib
+import time
+from urllib.parse import urlparse
+from typing import Any, Sequence
 
 # Standard placeholder format: [REDACTED:<type>]
 REDACTION_PATTERN = re.compile(
@@ -70,4 +74,97 @@ def assert_no_raw_secret(container: Any, raw_secret: str) -> None:
     elif isinstance(container, (list, tuple, set)):
         for item in container:
             assert_no_raw_secret(item, raw_secret)
+
+
+def is_safe_redirect_url(target_url: str, allowed_hosts: Sequence[str] | None = None) -> bool:
+    """
+    Validate redirect URLs to defend against Open Redirect attacks (Playbook §18).
+    - Requires relative URLs to begin with single '/' and disallows '//', '/\\', or scheme-relative tricks.
+    - If absolute URL, strictly matches host against allowed_hosts.
+    """
+    if not target_url or not isinstance(target_url, str):
+        return False
+
+    url = target_url.strip()
+    if "\r" in url or "\n" in url or "\0" in url:
+        return False
+
+    # Disallow protocol-relative or Windows-path-relative: '//', '/\', '\\'
+    if url.startswith("//") or url.startswith("/\\") or url.startswith("\\"):
+        return False
+
+    # Relative path check
+    if url.startswith("/") and not url.startswith("/_") and not url.startswith("//"):
+        try:
+            parsed = urlparse(url)
+            # Must not have netloc or scheme
+            if not parsed.netloc and not parsed.scheme:
+                return True
+        except Exception:
+            return False
+
+    # Absolute URL check
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme.lower() not in ("http", "https"):
+            return False
+        if not parsed.hostname:
+            return False
+        if allowed_hosts:
+            allowed = [h.lower().strip() for h in allowed_hosts]
+            return parsed.hostname.lower().strip() in allowed
+        return False
+    except Exception:
+        return False
+
+
+def verify_webhook_signature(
+    raw_body: bytes,
+    signature_header: str,
+    secret: str,
+    tolerance_seconds: int = 300,
+    timestamp: int | None = None
+) -> tuple[bool, str]:
+    """
+    Verify webhook HMAC-SHA256 signature with constant-time equality and replay protection (Playbook §19).
+    Returns (is_valid: bool, reason: str).
+    """
+    if not signature_header or not secret:
+        return False, "Missing signature header or secret."
+
+    if not isinstance(raw_body, bytes):
+        return False, "Raw body must be bytes."
+
+    # Parse potential timestamp and signature formatted as 't=...,v1=...' or 'sha256=...'
+    sig_clean = signature_header.strip()
+    ts_val = timestamp
+
+    if "t=" in sig_clean and "v1=" in sig_clean:
+        parts = dict(part.split("=", 1) for part in sig_clean.split(",") if "=" in part)
+        try:
+            ts_val = int(parts.get("t", 0))
+            sig_clean = parts.get("v1", "")
+        except ValueError:
+            return False, "Invalid timestamp in signature header."
+
+    # Check timestamp replay protection if provided
+    if ts_val is not None:
+        current_time = int(time.time())
+        if abs(current_time - ts_val) > tolerance_seconds:
+            return False, f"Signature timestamp expired (drift > {tolerance_seconds}s)."
+
+    # Compute expected signature
+    to_sign = f"{ts_val}.".encode("utf-8") + raw_body if ts_val is not None else raw_body
+    computed = hmac.new(secret.encode("utf-8"), to_sign, hashlib.sha256).hexdigest()
+
+    # Normalize hex prefix if present
+    if sig_clean.startswith("sha256="):
+        sig_clean = sig_clean[7:]
+
+    # Constant-time comparison
+    if not hmac.compare_digest(computed.lower(), sig_clean.lower()):
+        return False, "HMAC signature mismatch."
+
+    return True, "Signature verified."
+
 

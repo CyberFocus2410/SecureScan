@@ -14,7 +14,7 @@ import {
 } from '../types/contracts';
 import * as mockData from './mockData';
 
-const BASE_URL = '/api/v1';
+const BASE_URL = `${import.meta.env.VITE_API_BASE_URL || ''}/api/v1`;
 
 // Session management
 export function getSessionId(): string {

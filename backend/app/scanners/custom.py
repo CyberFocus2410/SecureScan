@@ -58,7 +58,7 @@ class CustomRulesScanner(BaseScannerAdapter):
         )
 
     def supports(self, detected_languages: list[str], detected_frameworks: list[str]) -> bool:
-        supported_frameworks = {"FastAPI", "Express"}
+        supported_frameworks = {"FastAPI", "Express", "Next.js"}
         return bool(supported_frameworks.intersection(set(detected_frameworks)))
 
     def prepare(self, worktree_dir: Path) -> dict[str, Any]:
@@ -71,7 +71,7 @@ class CustomRulesScanner(BaseScannerAdapter):
         findings: list[RawFinding] = []
 
         is_fastapi = "FastAPI" in detected_frameworks
-        is_express = "Express" in detected_frameworks
+        is_express = "Express" in detected_frameworks or "Next.js" in detected_frameworks
 
         if is_fastapi:
             findings.extend(self._scan_fastapi(worktree_dir))
@@ -130,6 +130,15 @@ class CustomRulesScanner(BaseScannerAdapter):
 
                 # 5. Missing Pagination on List Endpoints (SEC-029)
                 findings.extend(self._check_fastapi_pagination(tree, rel_path, content))
+
+                # 6. Open Redirects (SEC-014 / SEC-015 / Playbook §18)
+                findings.extend(self._check_open_redirects(tree, rel_path, content))
+
+                # 7. Unverified Webhooks (SEC-007 / Playbook §19)
+                findings.extend(self._check_unverified_webhooks(tree, rel_path, content))
+
+                # 8. Frontend/Client-supplied pricing (SEC-009 / Playbook §17)
+                findings.extend(self._check_client_pricing(tree, rel_path, content))
 
         return findings
 
@@ -325,6 +334,115 @@ class CustomRulesScanner(BaseScannerAdapter):
                             technical_fix="Add limit and offset query parameters with an upper maximum bound (e.g. limit: int = 50).",
                             validation_steps="Send requests requesting large dataset; verify response is bounded."
                         ))
+        return findings
+
+    def _check_open_redirects(self, tree: ast.AST, rel_path: str, content: str) -> list[RawFinding]:
+        """Flag unvalidated redirect calls accepting user parameters (Playbook §18)."""
+        findings = []
+        lines = content.splitlines()
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call):
+                call_name = ""
+                if isinstance(node.func, ast.Name):
+                    call_name = node.func.id
+                elif isinstance(node.func, ast.Attribute):
+                    call_name = node.func.attr
+
+                if call_name in ("RedirectResponse", "redirect"):
+                    call_src = ast.unparse(node) if hasattr(ast, "unparse") else ""
+                    if any(arg in call_src.lower() for arg in ["url", "next", "target", "redirect", "dest", "return"]):
+                        line_num = getattr(node, "lineno", 1)
+                        snippet = lines[line_num - 1] if line_num <= len(lines) else call_src
+                        findings.append(RawFinding(
+                            rule_id="sec-014-open-redirect-risk",
+                            title="Unvalidated Open Redirect Target",
+                            description="Endpoint uses RedirectResponse or redirect with user-controlled parameter without URL validation.",
+                            category="injection",
+                            severity=Severity.MEDIUM,
+                            confidence=Confidence.MEDIUM,
+                            file_path=rel_path,
+                            start_line=line_num,
+                            end_line=line_num,
+                            raw_snippet=redact_text(snippet.strip()),
+                            cwe_ids=["CWE-601"],
+                            owasp_refs=["A01:2025"],
+                            technical_fix="Validate redirect target using safe URL parser: only allow relative URLs starting with a single '/' or explicit allow-list.",
+                            validation_steps="Test redirect with target='https://evil.com' and '//evil.com'; verify rejected."
+                        ))
+        return findings
+
+    def _check_unverified_webhooks(self, tree: ast.AST, rel_path: str, content: str) -> list[RawFinding]:
+        """Flag webhook endpoints lacking cryptographic signature verification (Playbook §19)."""
+        findings = []
+        lines = content.splitlines()
+
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                func_src = ast.unparse(node) if hasattr(ast, "unparse") else ""
+                for dec in node.decorator_list:
+                    dec_src = ast.unparse(dec) if hasattr(ast, "unparse") else ""
+                    if "webhook" in dec_src.lower() or "webhook" in node.name.lower():
+                        has_sig = any(term in func_src.lower() for term in [
+                            "signature", "hmac", "verify", "secret", "hub-signature", "stripe-signature"
+                        ])
+                        if not has_sig:
+                            line_num = node.lineno
+                            snippet = lines[line_num - 1] if line_num <= len(lines) else node.name
+                            findings.append(RawFinding(
+                                rule_id="sec-007-unverified-webhook",
+                                title="Webhook Endpoint Lacking Signature Verification",
+                                description=f"Webhook handler '{node.name}' does not appear to verify cryptographic provider signatures.",
+                                category="auth",
+                                severity=Severity.HIGH,
+                                confidence=Confidence.POTENTIAL_GAP,
+                                file_path=rel_path,
+                                start_line=line_num,
+                                end_line=line_num,
+                                raw_snippet=redact_text(snippet.strip()),
+                                cwe_ids=["CWE-345", "CWE-353"],
+                                owasp_refs=["A07:2025"],
+                                technical_fix="Compute HMAC-SHA256 signature over raw request body with configured shared secret and compare using constant-time equality.",
+                                validation_steps="Post payload with invalid or missing signature; verify HTTP 401/403."
+                            ))
+        return findings
+
+    def _check_client_pricing(self, tree: ast.AST, rel_path: str, content: str) -> list[RawFinding]:
+        """Flag endpoints accepting client-specified price or payment totals (Playbook §17)."""
+        findings = []
+        lines = content.splitlines()
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef):
+                cls_name = node.name.lower()
+                if any(w in cls_name for w in ["order", "checkout", "payment", "cart", "purchase"]):
+                    for stmt in node.body:
+                        field_name = ""
+                        if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
+                            field_name = stmt.target.id
+                        elif isinstance(stmt, ast.Assign):
+                            for target in stmt.targets:
+                                if isinstance(target, ast.Name):
+                                    field_name = target.id
+                        if field_name.lower() in ("price", "amount", "total", "discount", "is_paid", "paid"):
+                            line_num = stmt.lineno
+                            snippet = lines[line_num - 1] if line_num <= len(lines) else field_name
+                            findings.append(RawFinding(
+                                rule_id="sec-004-client-supplied-pricing",
+                                title="Client-Supplied Pricing or Payment State in Request Model",
+                                description=f"Request model '{node.name}' contains writable field '{field_name}'. Price and payment totals must be computed server-side.",
+                                category="data_exposure",
+                                severity=Severity.HIGH,
+                                confidence=Confidence.CONFIRMED,
+                                file_path=rel_path,
+                                start_line=line_num,
+                                end_line=line_num,
+                                raw_snippet=redact_text(snippet.strip()),
+                                cwe_ids=["CWE-472"],
+                                owasp_refs=["API3:2023"],
+                                technical_fix="Do not trust client-supplied prices or payment status. Compute totals from authoritative database records and gate access on verified webhooks.",
+                                validation_steps="Attempt to submit order with manipulated price; verify price is ignored and recomputed server-side."
+                            ))
         return findings
 
     # -------------------------------------------------------------------------

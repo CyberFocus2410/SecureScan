@@ -164,32 +164,37 @@ export const DPDPPage: React.FC = () => {
       {/* Header & Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-200 dark:border-slate-800">
         <div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5 sm:gap-3">
             <img
               src="/logo.jpg"
               alt="SecureScan AI Logo"
-              className="w-8 h-8 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 object-cover"
+              className="w-8 h-8 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 object-cover flex-shrink-0"
             />
-            <h1 className="text-2xl font-bold tracking-tight">DPDP Act 2023 / Rules 2025 Readiness</h1>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+              DPDP Act 2023 Readiness
+            </h1>
           </div>
-          <p className="text-xs text-slate-500 font-mono mt-1">Audit: {auditId} • Statutory As-Of: 2026-11-14</p>
+          <p className="text-[11px] sm:text-xs text-slate-500 font-mono mt-1 break-all">
+            Audit: {auditId} • Statutory As-Of: 2026-11-14
+          </p>
         </div>
-        <div className="flex flex-wrap gap-2.5">
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
           <button
             onClick={() => setQuestionnaireOpen(!questionnaireOpen)}
-            className="px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+            className="flex-1 sm:flex-initial px-3.5 py-2 border border-slate-300 dark:border-slate-700 rounded-xl text-xs sm:text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition text-center cursor-pointer"
           >
-            {questionnaireOpen ? 'Hide Questionnaire' : 'Applicability Questionnaire'}
+            {questionnaireOpen ? 'Hide Form' : 'Questionnaire'}
           </button>
           <button
             onClick={() => setPenaltyDrawerOpen(true)}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition flex items-center gap-1.5"
+            className="flex-1 sm:flex-initial px-3.5 py-2 bg-indigo-600 text-white rounded-xl text-xs sm:text-sm font-semibold hover:bg-indigo-700 active:bg-indigo-800 transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
           >
-            <ShieldAlert className="w-4 h-4" /> Penalty References
+            <ShieldAlert className="w-3.5 h-3.5" />
+            <span>Penalties</span>
           </button>
           <Link
             to={`/audits/${auditId}/security`}
-            className="px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+            className="w-full sm:w-auto px-3.5 py-2 border border-slate-300 dark:border-slate-700 rounded-xl text-xs sm:text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition text-center"
           >
             Security Tab
           </Link>
@@ -428,7 +433,7 @@ export const DPDPPage: React.FC = () => {
             <div className="pt-6 border-t border-slate-200 dark:border-slate-800 flex justify-end">
               <button
                 onClick={() => setPenaltyDrawerOpen(false)}
-                className="px-5 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition"
+                className="w-full sm:w-auto px-5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition cursor-pointer"
               >
                 Close Reference Drawer
               </button>

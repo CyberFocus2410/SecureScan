@@ -1,6 +1,6 @@
 """Background audit worker and pipeline state machine orchestrator."""
 import os
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from pathlib import Path
 from sqlalchemy.orm import Session
 
@@ -65,6 +65,18 @@ def check_session_quotas_and_dedupe(
     if active_count >= limits.MAX_ACTIVE_AUDITS_PER_SESSION:
         raise QuotaExceededError(
             f"Concurrent audit quota ({limits.MAX_ACTIVE_AUDITS_PER_SESSION}) exceeded for this session."
+        )
+
+    # 3. Hourly quota check (Playbook §16)
+    one_hour_ago = datetime.utcnow() - timedelta(hours=1)
+    hourly_count = db.query(AuditModel).filter(
+        AuditModel.session_id == session_id,
+        AuditModel.created_at >= one_hour_ago
+    ).count()
+
+    if hourly_count >= limits.MAX_AUDITS_PER_HOUR_PER_SESSION:
+        raise QuotaExceededError(
+            f"Hourly audit submission quota ({limits.MAX_AUDITS_PER_HOUR_PER_SESSION}/hour) exceeded for this session."
         )
 
 

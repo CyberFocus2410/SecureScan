@@ -1,6 +1,7 @@
 """Report generation service (FR-RPT, FR-ACC)."""
 import os
 import uuid
+from pathlib import Path
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 
@@ -95,6 +96,25 @@ def get_report_artifact(report_id: str, session_id: str, db: Session) -> tuple[R
     audit = db.query(AuditModel).filter(AuditModel.id == report.audit_id).first()
     if not audit or audit.session_id != session_id:
         raise UnauthorizedSessionError("Unauthorized session access.")
+
+    # Path traversal validation (Playbook §6)
+    target_path = Path(report.safe_storage_key).resolve()
+    base_storage = Path(REPORTS_STORAGE_DIR).resolve()
+    try:
+        target_path.relative_to(base_storage)
+    except ValueError:
+        raise SecureScanException(
+            code=ErrorCode.ERR_REPORT_NOT_FOUND,
+            message="Invalid or unsafe report artifact path.",
+            status_code=403
+        )
+
+    if not target_path.exists() or not target_path.is_file():
+        raise SecureScanException(
+            code=ErrorCode.ERR_REPORT_NOT_FOUND,
+            message="Report file artifact is missing or inaccessible.",
+            status_code=404
+        )
 
     repo = db.query(RepositoryModel).filter(RepositoryModel.id == audit.repository_id).first()
     repo_clean = "repo"

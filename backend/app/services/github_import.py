@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 from typing import Tuple, List, Dict, Any
 
 from app.core.limits import limits
+from app.core.safe_fetch import is_safe_url
 from app.core.errors import (
     InvalidRepoUrlError,
     RepoTooLargeError,
@@ -24,6 +25,13 @@ GITHUB_URL_REGEX = re.compile(
 SAFE_BRANCH_REGEX = re.compile(
     r"^[a-zA-Z0-9_.-]+(?:/[a-zA-Z0-9_.-]+)*$"
 )
+
+# Common media and font asset extensions exempt from code file caps
+MEDIA_ASSET_EXTENSIONS = {
+    ".mp4", ".mov", ".avi", ".mkv", ".webm", ".flv", ".wmv",
+    ".mp3", ".wav", ".ogg", ".flac", ".aac",
+    ".woff", ".woff2", ".ttf", ".eot", ".otf"
+}
 
 
 def parse_and_validate_github_url(raw_url: str) -> Tuple[str, str, str]:
@@ -52,6 +60,11 @@ def parse_and_validate_github_url(raw_url: str) -> Tuple[str, str, str]:
     # Host must be strictly 'github.com'
     if parsed.netloc.lower() != "github.com":
         raise InvalidRepoUrlError(f"Unsupported host '{parsed.netloc}'. Only 'github.com' is permitted.")
+
+    # Reusable SSRF guard verification (Playbook §7)
+    safe, reason = is_safe_url(raw_url, allowed_schemes=("https",), allowed_hosts=("github.com",), block_private_ips=False)
+    if not safe:
+        raise InvalidRepoUrlError(reason)
 
     # Rejects userinfo (e.g. user:pass@github.com)
     if parsed.username or parsed.password:
@@ -224,6 +237,10 @@ def sanitize_and_enforce_caps(worktree_dir: Path) -> Dict[str, Any]:
     for root, dirs, files in os.walk(worktree_dir, followlinks=False):
         current_dir = Path(root)
 
+        # Do not recurse into internal .git database directory (packfiles, objects)
+        if ".git" in dirs:
+            dirs.remove(".git")
+
         # Inspect directories for symlinks
         for d in list(dirs):
             d_path = current_dir / d
@@ -253,10 +270,13 @@ def sanitize_and_enforce_caps(worktree_dir: Path) -> Dict[str, Any]:
 
             try:
                 f_size = f_path.stat().st_size
-                if f_size > limits.MAX_SINGLE_FILE_BYTES:
+                is_media = f_path.suffix.lower() in MEDIA_ASSET_EXTENSIONS
+                max_single = limits.MAX_MEDIA_FILE_BYTES if is_media else limits.MAX_SINGLE_FILE_BYTES
+
+                if f_size > max_single:
                     # Single file exceeds cap (e.g. giant binary)
                     raise RepoTooLargeError(
-                        f"File '{f}' exceeds maximum single file size ({limits.MAX_SINGLE_FILE_BYTES} bytes)."
+                        f"File '{f}' exceeds maximum single file size ({max_single} bytes)."
                     )
                 total_bytes += f_size
             except (OSError, FileNotFoundError):
@@ -325,6 +345,12 @@ def detect_languages_and_frameworks(worktree_dir: Path) -> Tuple[List[str], List
                         frameworks.add("Express")
                     if '"next"' in content:
                         frameworks.add("Next.js")
+                    if '"react"' in content:
+                        frameworks.add("React")
+                    if '"vue"' in content:
+                        frameworks.add("Vue")
+                    if '"@nestjs/' in content:
+                        frameworks.add("NestJS")
                 except Exception:
                     pass
 

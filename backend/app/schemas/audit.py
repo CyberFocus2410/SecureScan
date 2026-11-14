@@ -9,6 +9,8 @@ class RepositoryCreate(BaseModel):
     github_url: HttpUrl
     branch: str = "main"
 
+    model_config = ConfigDict(extra="forbid")
+
 
 class Repository(BaseModel):
     id: UUID = Field(default_factory=uuid4)
@@ -27,6 +29,8 @@ class AuditCreate(BaseModel):
     repository_id: UUID
     scopes: list[AuditScope] = [AuditScope.SECURITY, AuditScope.DPDP]
     commit_sha: str | None = None
+
+    model_config = ConfigDict(extra="forbid")
 
 
 class AuditEvent(BaseModel):

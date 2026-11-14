@@ -7,6 +7,8 @@ from pydantic import BaseModel, Field, ConfigDict
 class AIExplainRequest(BaseModel):
     include_risk_context: bool = Field(True, description="Whether to include contextual risk breakdown")
 
+    model_config = ConfigDict(extra="forbid")
+
 
 class AIExplanation(BaseModel):
     finding_id: UUID

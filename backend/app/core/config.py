@@ -21,6 +21,18 @@ class Settings(BaseSettings):
     # Governance & Dates
     AS_OF_DATE: str = "2026-11-14"
 
+    # Security & CORS
+    CORS_ORIGINS: list[str] = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
+    SECURITY_HEADERS_ENABLED: bool = True
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_REQUESTS_PER_MINUTE: int = 120
+    WEBHOOK_SECRET: str | None = None
+
     # Paths
     BASE_DIR: Path = Path(__file__).resolve().parent.parent.parent.parent
     POLICY_DIR: Path = Path(__file__).resolve().parent.parent.parent.parent / "policies"

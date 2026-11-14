@@ -1,4 +1,5 @@
 """Typed error model and custom exceptions matching frozen API contracts."""
+import logging
 from enum import Enum
 from typing import Any
 from fastapi import Request, status
@@ -24,6 +25,7 @@ class ErrorCode(str, Enum):
     ERR_POLICY_LOAD_FAILED = "ERR_POLICY_LOAD_FAILED"
     ERR_REPORT_GENERATION_FAILED = "ERR_REPORT_GENERATION_FAILED"
     ERR_AI_PROVIDER_UNAVAILABLE = "ERR_AI_PROVIDER_UNAVAILABLE"
+    ERR_INTERNAL_SERVER_ERROR = "ERR_INTERNAL_SERVER_ERROR"
 
 
 class SecureScanException(Exception):
@@ -148,4 +150,23 @@ async def validation_exception_handler(_: Request, exc: RequestValidationError) 
             }
         }
     )
+
+
+logger = logging.getLogger("securescan")
+
+
+async def unhandled_exception_handler(_: Request, exc: Exception) -> JSONResponse:
+    """Generic error handler: logs details server-side without leaking stack traces or internal details to clients (Playbook §20)."""
+    logger.error("Unhandled server exception: %s", exc, exc_info=True)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "error": {
+                "code": ErrorCode.ERR_INTERNAL_SERVER_ERROR.value,
+                "message": "An internal server error occurred.",
+                "details": None
+            }
+        }
+    )
+
 
