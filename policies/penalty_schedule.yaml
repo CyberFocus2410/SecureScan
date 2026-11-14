@@ -1,0 +1,33 @@
+version: "1.0.0"
+source: "Digital Personal Data Protection Act, 2023 - Schedule"
+caveat: "Potential legal category; applicability and liability not determined."
+items:
+  - schedule_item: 1
+    breach: "Breach in observing the obligation of Data Fiduciary to take reasonable security safeguards to prevent personal data breach under sub-section (5) of section 8"
+    related_act_section: "Section 8(5)"
+    ceiling_inr: "Up to ₹250 crore"
+  - schedule_item: 2
+    breach: "Breach in observing the obligation to give the Board or affected Data Principal notice of a personal data breach under sub-section (6) of section 8"
+    related_act_section: "Section 8(6)"
+    ceiling_inr: "Up to ₹200 crore"
+  - schedule_item: 3
+    breach: "Breach in observance of additional obligations in relation to children under section 9"
+    related_act_section: "Section 9"
+    ceiling_inr: "Up to ₹200 crore"
+  - schedule_item: 4
+    breach: "Breach in observance of additional obligations of Significant Data Fiduciary under section 10"
+    related_act_section: "Section 10"
+    ceiling_inr: "Up to ₹150 crore"
+  - schedule_item: 5
+    breach: "Breach in observance of the duties of Data Principal under section 15"
+    related_act_section: "Section 15"
+    ceiling_inr: "Up to ₹10,000"
+  - schedule_item: 6
+    breach: "Breach of any term of voluntary undertaking accepted by the Board under section 32"
+    related_act_section: "Section 32"
+    ceiling_inr: "Up to the extent of penalty for breach in respect of which undertaking was provided"
+  - schedule_item: 7
+    breach: "Breach of any other provision of this Act or the rules made thereunder"
+    related_act_section: "Residual provisions"
+    ceiling_inr: "Up to ₹50 crore"
+
