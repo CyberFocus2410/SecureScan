@@ -204,6 +204,11 @@ def clone_shallow_worktree(
         rev_proc = subprocess.run(rev_cmd, stdout=subprocess.PIPE, text=True, check=True)
         resolved_sha = rev_proc.stdout.strip().lower()
 
+        # Strip .git database to prevent internal packfiles/objects from consuming space
+        git_dir = target_dir / ".git"
+        if git_dir.exists():
+            shutil.rmtree(git_dir, ignore_errors=True)
+
         # Sanitize and verify bounded constraints
         sanitize_and_enforce_caps(target_dir)
 
@@ -238,8 +243,9 @@ def sanitize_and_enforce_caps(worktree_dir: Path) -> Dict[str, Any]:
         current_dir = Path(root)
 
         # Do not recurse into internal .git database directory (packfiles, objects)
-        if ".git" in dirs:
-            dirs.remove(".git")
+        dirs[:] = [d for d in dirs if d.lower() != ".git"]
+        if any(p.lower() == ".git" for p in current_dir.parts):
+            continue
 
         # Inspect directories for symlinks
         for d in list(dirs):
