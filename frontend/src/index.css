@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #FFFFFF;
+  --surface: #F5F7FA;
+  --text: #14181F;
+  --muted: #5B6575;
+}
+
+.dark {
+  --bg: #0F1217;
+  --surface: #181D25;
+  --text: #E6EAF0;
+  --muted: #9AA5B5;
+}
+
+body {
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
