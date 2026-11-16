@@ -133,9 +133,9 @@ export const HomePage: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 text-xs sm:text-sm">
         <div className="p-4 sm:p-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xs">
           <Lock className="w-5 h-5 text-blue-600 mb-2" />
-          <h3 className="font-semibold mb-1 text-slate-900 dark:text-white">Zero Execution</h3>
+          <h3 className="font-semibold mb-1 text-slate-900 dark:text-white">Isolated Static Analysis</h3>
           <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed">
-            We never run repo build scripts, hooks, or live exploits. All scans run in isolated, network-disabled sandboxes.
+            Pure static security analysis (SAST) in an offline sandbox. We never execute repo code, penetration tests, or live exploit simulations.
           </p>
         </div>
         <div className="p-4 sm:p-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xs">

@@ -132,9 +132,10 @@ If you prefer serverless/managed platforms without managing Docker VMs:
 ## 🔒 Production Security Checklist
 
 Before public launch:
-- [x] Rate limiting active (120 req/min/IP via [rate_limit.py](file:///c:/Users/Vivan/OneDrive/Documents/PROJECTS/SecureScan/backend/app/core/rate_limit.py))
-- [x] Strict security headers enabled (HSTS, CSP, X-Frame-Options: DENY, X-Content-Type-Options: nosniff via [security_headers.py](file:///c:/Users/Vivan/OneDrive/Documents/PROJECTS/SecureScan/backend/app/core/security_headers.py) & NGINX)
-- [x] SSRF-safe GitHub cloning with IP blacklisting ([safe_fetch.py](file:///c:/Users/Vivan/OneDrive/Documents/PROJECTS/SecureScan/backend/app/core/safe_fetch.py))
-- [x] Secrets redacted at parser boundary before storage ([security.py](file:///c:/Users/Vivan/OneDrive/Documents/PROJECTS/SecureScan/backend/app/core/security.py))
-- [x] PWA manifest and service worker precaching active ([manifest.json](file:///c:/Users/Vivan/OneDrive/Documents/PROJECTS/SecureScan/frontend/public/manifest.json) & [sw.js](file:///c:/Users/Vivan/OneDrive/Documents/PROJECTS/SecureScan/frontend/public/sw.js))
+- [x] Rate limiting active (120 req/min/IP via [rate_limit.py](backend/app/core/rate_limit.py))
+- [x] Strict security headers enabled (HSTS, CSP, X-Frame-Options: DENY, X-Content-Type-Options: nosniff via [security_headers.py](backend/app/core/security_headers.py) & NGINX)
+- [x] SSRF-safe GitHub cloning with IP blacklisting ([safe_fetch.py](backend/app/core/safe_fetch.py))
+- [x] Secrets redacted at parser boundary before storage ([security.py](backend/app/core/security.py))
+- [x] PWA manifest and service worker precaching active ([manifest.json](frontend/public/manifest.json) & [sw.js](frontend/public/sw.js))
+- [x] Pure static analysis model: isolated static SAST/rules with zero code execution, zero exploit confirmation, and zero network calls during scan
 - [x] Full mobile responsiveness verified across all viewport sizes

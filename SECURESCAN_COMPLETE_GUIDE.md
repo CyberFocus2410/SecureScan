@@ -27,6 +27,9 @@
 5. Computes dynamic enforcement dates (differentiating between *in-force* and *upcoming* legal rules).
 6. Generates high-fidelity PDF and JSON audit reports featuring prioritized engineering remediations and statutory penalty **ceilings**.
 
+> [!IMPORTANT]
+> **System Boundary & Scope**: SecureScan AI operates exclusively through isolated static analysis (SAST, secret detection, dependency CVE lookups, and AST pattern matching). It is **not** an autonomous agent, penetration-testing tool, or exploit-confirmation engine. It performs zero dynamic execution, zero network requests to target infrastructure, and zero live exploit validation.
+
 ### 1.2 The Problem: Why Traditional Scanners Fail
 Developers and engineering teams in India face three critical gaps:
 

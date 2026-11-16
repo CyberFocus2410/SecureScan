@@ -21,14 +21,14 @@ Ensure both servers are running locally:
 2. **Submit Repository**
    - In the Repository URL field, enter the fixture repository:
      ```text
-     https://github.com/vivan/sample-fastapi-app
+     https://github.com/CyberFocus2410/Kirana_Vulnerable
      ```
    - Select Scopes: Check both **Security Audit (OWASP/ASVS)** and **DPDP Readiness (India)**.
    - Click **Run Audit**.
 
 3. **Live Progress & Sandboxed Isolation**
    - Show the live event stream as the audit transitions: `QUEUED` → `IMPORTING` → `SCANNING` → `ANALYZING` → `REPORT_READY`.
-   - **Key Explanatory Point:** Emphasize that the code runs inside a zero-network sandbox (`--network=none`, non-root, read-only filesystem). Untrusted repository scripts and hooks are **never executed**.
+   - **Key Explanatory Point:** Emphasize that SecureScan operates purely as an isolated static security and DPDP readiness engine running inside a zero-network sandbox (`--network=none`, non-root, read-only filesystem). It is **not** an autonomous agent, penetration-testing platform, or exploit-validation engine. Untrusted repository scripts, hooks, or live exploit simulations are **never executed**.
    - Note the pinned commit SHA displayed in the header banner.
 
 ---

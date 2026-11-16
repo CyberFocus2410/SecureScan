@@ -5,14 +5,14 @@
 SecureScan AI takes a public GitHub repository, safely imports a pinned commit, runs sandboxed static security scanners (Gitleaks, Semgrep, OSV-Scanner, Bandit) and custom framework rules, maps findings to OWASP Top 10 and ASVS, evaluates India DPDP Act 2023 readiness with dynamic phased commencement, and exports auditable PDF and JSON reports with statutory penalty *ceilings*.
 
 > [!IMPORTANT]
-> **Developer-Assistance Disclaimer**  
-> SecureScan AI is a diagnostic developer-assistance tool. It is **not** a security certification, compliance certificate, penetration test, or legal opinion. All statutory penalties listed reflect maximum statutory ceilings under the Schedule to the DPDP Act, 2023, accompanied by the mandatory caveat: *"Potential legal category; applicability and liability not determined."* Predicted fines and summed penalty totals are strictly prohibited.
+> **Developer-Assistance Disclaimer & Scope Boundary**  
+> SecureScan AI is a diagnostic developer-assistance static analysis platform. It is **not** a penetration-testing tool, exploit-confirmation agent, security certification, compliance certificate, or legal opinion. SecureScan runs isolated static scanners (Gitleaks, Semgrep, OSV-Scanner, Bandit, and AST pattern analyzers) within an offline sandbox; it does **not** perform autonomous exploit validation, active fuzzing, penetration testing, or dynamic execution against scanned repositories or live environments. All statutory penalties listed reflect maximum statutory ceilings under the Schedule to the DPDP Act, 2023, accompanied by the mandatory caveat: *"Potential legal category; applicability and liability not determined."* Predicted fines and summed penalty totals are strictly prohibited.
 
 ---
 
 ## Key Capabilities & Core Philosophy
 
-- **Zero Untrusted Code Execution**: Scanners run inside an isolated sandbox with `--network=none`, non-root execution, dropped capabilities, and read-only mounts. Repository scripts, hooks, or package build tasks are **never** executed.
+- **Isolated Static Analysis (Zero Code Execution & No Exploit Validation)**: Scanners run strictly as offline, read-only static analysis tools inside an isolated sandbox with `--network=none`, non-root execution, dropped capabilities, and read-only mounts. Repository scripts, package build tasks, hooks, or live exploit payloads are **never** executed or validated dynamically.
 - **Strict Secret Redaction at Parser Boundary**: Secret literals are sanitized immediately upon detection (`[REDACTED:<type>]`). Raw credentials never reach the database, logs, user interface, report documents, or AI prompts.
 - **Honesty States (Unknown ≠ Pass)**:
   - `PASS_EVIDENCED`: Defensive control verified by static evidence.
@@ -71,7 +71,7 @@ SecureScan AI
 **Backend Setup:**
 ```bash
 # Clone the repository
-git clone https://github.com/vivan/SecureScan.git
+git clone https://github.com/CyberFocus2410/SecureScan.git
 cd SecureScan
 
 # Create virtual environment

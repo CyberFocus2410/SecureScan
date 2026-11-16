@@ -56,7 +56,7 @@ export const App: React.FC = () => {
               <span className="font-semibold text-slate-700 dark:text-slate-300">SecureScan AI</span>
             </div>
             <p className="max-w-xl mx-auto leading-relaxed">
-              Developer-assistance static audit & DPDP readiness engine. Not a legal opinion or compliance certificate.
+              Developer-assistance static audit & DPDP readiness engine. Not a legal opinion, penetration test, or compliance certificate.
             </p>
           </footer>
         </div>
