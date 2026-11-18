@@ -30,9 +30,13 @@ class Settings(BaseSettings):
         "http://127.0.0.1:3000",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "https://securescanbox.xyz",
+        "https://www.securescanbox.xyz",
+        "http://securescanbox.xyz",
+        "http://www.securescanbox.xyz",
         "https://secure-scan-two.vercel.app",
     ]
-    CORS_ORIGIN_REGEX: str = r"^https:\/\/.*\.vercel\.app$"
+    CORS_ORIGIN_REGEX: str = r"^https?:\/\/(localhost|127\.0\.0\.1|.*\.vercel\.app|(.*\.)?securescanbox\.xyz)(:\d+)?$"
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
@@ -52,6 +56,10 @@ class Settings(BaseSettings):
             "http://127.0.0.1:3000",
             "http://localhost:5173",
             "http://127.0.0.1:5173",
+            "https://securescanbox.xyz",
+            "https://www.securescanbox.xyz",
+            "http://securescanbox.xyz",
+            "http://www.securescanbox.xyz",
             "https://secure-scan-two.vercel.app",
         ]
     SECURITY_HEADERS_ENABLED: bool = True

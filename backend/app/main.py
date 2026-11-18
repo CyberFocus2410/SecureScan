@@ -32,14 +32,32 @@ app.add_middleware(SecurityHeadersMiddleware)
 # 2. Rate limiting middleware (Playbook §16)
 app.add_middleware(RateLimitMiddleware)
 
-# 3. CORS middleware with explicit origin allow-list and Vercel regex (Playbook §9)
+# 3. CORS middleware with explicit origin allow-list and domain regex (Playbook §9)
+cors_origins = list(settings.CORS_ORIGINS)
+for domain in [
+    "https://securescanbox.xyz",
+    "https://www.securescanbox.xyz",
+    "http://securescanbox.xyz",
+    "http://www.securescanbox.xyz",
+    "https://secure-scan-two.vercel.app",
+]:
+    if domain not in cors_origins:
+        cors_origins.append(domain)
+
+default_cors_regex = r"^https?:\/\/(localhost|127\.0\.0\.1|.*\.vercel\.app|(.*\.)?securescanbox\.xyz)(:\d+)?$"
+combined_cors_regex = (
+    f"(?:{settings.CORS_ORIGIN_REGEX})|(?:{default_cors_regex})"
+    if settings.CORS_ORIGIN_REGEX and settings.CORS_ORIGIN_REGEX != default_cors_regex
+    else default_cors_regex
+)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
-    allow_origin_regex=settings.CORS_ORIGIN_REGEX,
+    allow_origins=cors_origins,
+    allow_origin_regex=combined_cors_regex,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "X-Session-ID", "Authorization", "Accept", "Origin", "X-Requested-With"],
+    allow_headers=["*"],
     expose_headers=["X-RateLimit-Limit", "X-RateLimit-Remaining", "Retry-After"]
 )
 
