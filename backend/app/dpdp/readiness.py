@@ -614,6 +614,7 @@ class DpdpReadinessEngine:
         return {
             "as_of_date": eval_date.isoformat(),
             "readiness_score": final_score,
+            "raw_score": base_score,
             "scoring_methodology": (
                 "DPDP Readiness Score (0-100) evaluates applicable In Force controls with weighted scoring "
                 "(Verified/Implemented: 100%, Manual Attestation: 80%, Review: 70%, Partial: 40%, Not Detected: 0%). "
@@ -632,3 +633,9 @@ class DpdpReadinessEngine:
             "discovered_pii_count": len(pii_items),
             "discovered_processors_count": len(processors),
         }
+
+
+# Aliases for cross-module compatibility
+DPDPReadinessEngine = DpdpReadinessEngine
+DpdpReadinessEngine.evaluate_readiness = DpdpReadinessEngine.evaluate
+

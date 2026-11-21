@@ -165,7 +165,8 @@ def get_dpdp_readiness(
     db: Session = Depends(get_db)
 ):
     """Retrieve complete 0-100 DPDP Act 2023 readiness evaluation, controls, and statutory ceilings (Step 10)."""
-    from app.dpdp.readiness import DPDPReadinessEngine
+    from datetime import date
+    from app.dpdp.readiness import DpdpReadinessEngine
 
     audit = db.query(AuditModel).filter(AuditModel.id == str(audit_id)).first()
     if not audit:
@@ -174,17 +175,96 @@ def get_dpdp_readiness(
         raise HTTPException(status_code=403, detail="Access forbidden: audit belongs to another session")
 
     target_dir = settings.WORKTREE_STORAGE_DIR / str(audit_id)
-    if not target_dir.exists():
-        fixtures_dir = Path(__file__).resolve().parent.parent.parent.parent / "fixtures" / "dpdp-fixtures" / "identifiers_repo"
-        target_dir = fixtures_dir if fixtures_dir.exists() else Path(".")
+    worktree = target_dir if target_dir.exists() else None
 
     profile = db.query(DpdpProfileModel).filter(DpdpProfileModel.audit_id == str(audit_id)).first()
-    profile_answers = profile.answers if profile else {}
+    profile_answers = profile.answers if profile and profile.answers else {}
 
-    report = DPDPReadinessEngine.evaluate_readiness(
-        target_dir=target_dir,
-        findings=[{"rule_id": f.rule_id, "severity": f.severity, "priority": getattr(f, "priority", "P2")} for f in audit.findings],
-        profile_answers=profile_answers
+    sec_findings = [
+        {
+            "rule_id": f.rule_id,
+            "title": f.title,
+            "severity": f.severity,
+            "priority": getattr(f, "priority", "P2"),
+            "file_path": f.file_path,
+        }
+        for f in (audit.findings or [])
+    ]
+
+    report = DpdpReadinessEngine.evaluate(
+        worktree_dir=worktree,
+        security_findings=sec_findings,
+        questionnaire_answers=profile_answers,
+        as_of_date=date.today(),
+        is_sdf=bool(profile_answers.get("is_significant_data_fiduciary")),
+        processes_children=bool(profile_answers.get("processes_children_data")),
     )
-    return report.to_dict()
+
+    # Format categories dict into a list conforming to DPDPReadinessReport
+    categories_list = []
+    if isinstance(report.get("categories"), dict):
+        for cat_id, cat_info in report["categories"].items():
+            total = cat_info.get("total_controls", 0)
+            implemented = cat_info.get("verified_or_implemented", 0)
+            upcoming = cat_info.get("upcoming", 0)
+            partial = cat_info.get("partial", 0)
+
+            if implemented == total and total > 0:
+                cat_status = "Implemented"
+            elif upcoming == total and total > 0:
+                cat_status = "Upcoming"
+            elif implemented > 0 or partial > 0:
+                cat_status = "In Progress"
+            elif upcoming > 0:
+                cat_status = "Upcoming"
+            else:
+                cat_status = "Needs Action"
+
+            categories_list.append({
+                "category_id": cat_id,
+                "title": cat_info.get("category_title", cat_id),
+                "status": cat_status,
+                "controls_count": total,
+                "implemented_count": implemented,
+            })
+    elif isinstance(report.get("categories"), list):
+        categories_list = report["categories"]
+
+    # Format evaluated_controls list conforming to DPDPReadinessReport
+    evaluated_controls = []
+    for c in report.get("controls", []):
+        cid = c.get("id") or c.get("control_id")
+        evaluated_controls.append({
+            "control_id": cid,
+            "id": cid,
+            "title": c.get("title", ""),
+            "status": c.get("status", "Not detected"),
+            "category": c.get("category_title", c.get("category", "")),
+            "effective_date_status": c.get("commencement_status", c.get("effective_date_status", "")),
+            "evidence_summary": c.get("evidence_summary", ""),
+            "remediation": c.get("remediation", ""),
+            "act_section": c.get("act_section", ""),
+            "rules_ref": c.get("rules_ref", ""),
+            "applies_to": c.get("applies_to", ""),
+        })
+
+    return {
+        "readiness_score": report.get("readiness_score", 0),
+        "raw_score": report.get("raw_score", report.get("readiness_score", 0)),
+        "hard_cap_applied": report.get("hard_cap_applied", False),
+        "hard_cap_reason": report.get("hard_cap_reason"),
+        "as_of_date": report.get("as_of_date", str(date.today())),
+        "categories": categories_list,
+        "evaluated_controls": evaluated_controls,
+        "controls": report.get("controls", []),
+        "action_plan": report.get("action_plan", []),
+        "statutory_penalties": report.get("statutory_penalties", []),
+        "penalty_caveat": report.get("penalty_caveat", ""),
+        "scoring_methodology": report.get("scoring_methodology", ""),
+        "technical_findings_mapped": report.get("technical_findings_mapped", []),
+        "legal_review_pending": report.get("legal_review_pending", []),
+        "discovered_pii_count": report.get("discovered_pii_count", 0),
+        "discovered_processors_count": report.get("discovered_processors_count", 0),
+    }
+
 

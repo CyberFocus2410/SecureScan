@@ -349,6 +349,9 @@ export interface DPDPReadinessReport {
     effective_date_status: string;
     evidence_summary: string;
     remediation: string;
+    act_section?: string;
+    rules_ref?: string;
+    applies_to?: string;
   }>;
   action_plan: Array<{
     control_id: string;

@@ -91,7 +91,17 @@ class RiskIntelligenceEngine:
         priv_score = max(0, 100 - category_penalties["privacy"])
         infra_score = max(0, 100 - category_penalties["infrastructure"])
         sc_score = max(0, 100 - category_penalties["supply_chain"])
-        dpdp_score = dpdp_readiness_score if dpdp_readiness_score is not None else priv_score
+
+        if dpdp_readiness_score is not None:
+            dpdp_score = dpdp_readiness_score
+        else:
+            try:
+                from app.dpdp.readiness import DpdpReadinessEngine
+                dpdp_eval = DpdpReadinessEngine.evaluate(security_findings=findings)
+                dpdp_score = dpdp_eval.get("readiness_score", priv_score)
+            except Exception:
+                dpdp_score = priv_score
+
 
         # Section 6 Hard Cap Rule:
         # If ANY P0 finding is confirmed/likely, the relevant score cannot exceed 60

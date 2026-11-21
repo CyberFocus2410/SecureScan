@@ -5,7 +5,9 @@ import {
   X,
   Send,
   Sparkles,
-  Scale
+  Scale,
+  AlertTriangle,
+  RotateCcw
 } from 'lucide-react';
 import { submitDpdpProfile, getDpdpReadiness } from '../../services/api';
 import { DPDPReadinessReport } from '../../types/contracts';
@@ -16,6 +18,8 @@ export const DPDPPage: React.FC = () => {
   const [questionnaireOpen, setQuestionnaireOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [updatingProfile, setUpdatingProfile] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [controlFilter, setControlFilter] = useState<string>('ALL');
 
   // Questionnaire form state
   const [qAnswers, setQAnswers] = useState<{
@@ -35,11 +39,15 @@ export const DPDPPage: React.FC = () => {
   const loadData = () => {
     if (!auditId) return;
     setLoading(true);
+    setError(null);
     getDpdpReadiness(auditId)
       .then((rData) => {
         if (rData) setReport(rData);
       })
-      .catch((err) => console.error('Failed to load DPDP readiness:', err))
+      .catch((err) => {
+        console.error('Failed to load DPDP readiness:', err);
+        setError('Unable to load DPDP readiness report. Please verify backend service availability.');
+      })
       .finally(() => setLoading(false));
   };
 
@@ -55,6 +63,8 @@ export const DPDPPage: React.FC = () => {
       await submitDpdpProfile(auditId, qAnswers);
       await loadData();
       setQuestionnaireOpen(false);
+    } catch (err) {
+      console.error('Failed to update DPDP profile:', err);
     } finally {
       setUpdatingProfile(false);
     }
@@ -69,8 +79,17 @@ export const DPDPPage: React.FC = () => {
     );
   }
 
-  const readinessScore = report?.readiness_score || 0;
+  const readinessScore = report?.readiness_score ?? 0;
   const asOfDate = report?.as_of_date || new Date().toISOString().split('T')[0];
+
+  const controlsList = report?.evaluated_controls || [];
+  const filteredControls = controlsList.filter((c) => {
+    if (controlFilter === 'ALL') return true;
+    if (controlFilter === 'VERIFIED') return c.status === 'Verified' || c.status === 'Implemented' || c.status === 'MANUAL_PROVIDED';
+    if (controlFilter === 'UPCOMING') return c.status === 'Upcoming' || c.effective_date_status === 'UPCOMING';
+    if (controlFilter === 'GAP') return c.status === 'Potential Gap' || c.status === 'POTENTIAL_GAP' || c.status === 'Not detected' || c.status === 'Manual review';
+    return true;
+  });
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 sm:py-8">
@@ -110,6 +129,22 @@ export const DPDPPage: React.FC = () => {
           </Link>
         </div>
       </div>
+
+      {/* Error Alert if any */}
+      {error && (
+        <div className="p-4 bg-red-50 dark:bg-red-950/40 border border-red-300 dark:border-red-800 rounded-2xl mb-6 text-xs text-red-900 dark:text-red-200 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0" />
+            <p>{error}</p>
+          </div>
+          <button
+            onClick={loadData}
+            className="px-3 py-1 bg-red-100 hover:bg-red-200 dark:bg-red-900/60 dark:hover:bg-red-900 text-red-800 dark:text-red-200 rounded-lg text-xs font-semibold flex items-center gap-1"
+          >
+            <RotateCcw className="w-3.5 h-3.5" /> Retry
+          </button>
+        </div>
+      )}
 
       {/* Mandatory Statutory Disclaimer Banner */}
       <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-2xl mb-6 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-3">
@@ -151,7 +186,7 @@ export const DPDPPage: React.FC = () => {
             <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl text-center">
               <p className="text-[11px] text-slate-500 font-medium">Controls Evaluated</p>
               <p className="text-lg font-bold text-slate-900 dark:text-white mt-0.5">
-                {report?.evaluated_controls.length || 18} Controls
+                {report?.evaluated_controls?.length || 18} Controls
               </p>
             </div>
             <div className="p-3 bg-emerald-50/60 dark:bg-emerald-950/20 rounded-xl text-center border border-emerald-200 dark:border-emerald-900/40">
@@ -205,6 +240,99 @@ export const DPDPPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Statutory Controls Evaluation (18 Controls) */}
+      {report?.evaluated_controls && report.evaluated_controls.length > 0 && (
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs mb-8">
+          <div className="p-4 sm:p-6 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+                Statutory Controls Evaluation (18 Controls)
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Assessment mapped against Sections 3–16 of the Digital Personal Data Protection Act, 2023.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-slate-500">Filter:</span>
+              <select
+                value={controlFilter}
+                onChange={(e) => setControlFilter(e.target.value)}
+                className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium"
+              >
+                <option value="ALL">All Controls ({report.evaluated_controls.length})</option>
+                <option value="VERIFIED">Verified / Implemented</option>
+                <option value="UPCOMING">Upcoming Provisions</option>
+                <option value="GAP">Potential Gaps / Action Required</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="divide-y divide-slate-100 dark:divide-slate-800">
+            {filteredControls.map((ctrl) => (
+              <div key={ctrl.control_id} className="p-4 sm:p-5 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="px-2 py-0.5 font-mono font-bold text-xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded">
+                      {ctrl.control_id}
+                    </span>
+                    <span className="font-bold text-sm text-slate-900 dark:text-white">
+                      {ctrl.title}
+                    </span>
+                    {ctrl.act_section && (
+                      <span className="px-2 py-0.5 font-mono text-[10px] bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 rounded border border-blue-200 dark:border-blue-900">
+                        {ctrl.act_section} {ctrl.rules_ref ? `· ${ctrl.rules_ref}` : ''}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                      ctrl.status === 'Verified' || ctrl.status === 'Implemented' || ctrl.status === 'MANUAL_PROVIDED'
+                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                        : ctrl.status === 'Upcoming'
+                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
+                        : ctrl.status === 'Potential Gap' || ctrl.status === 'POTENTIAL_GAP'
+                        ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                        : 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300'
+                    }`}>
+                      {ctrl.status}
+                    </span>
+                    {ctrl.effective_date_status && (
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-mono ${
+                        ctrl.effective_date_status === 'IN_FORCE'
+                          ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
+                          : 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800'
+                      }`}>
+                        {ctrl.effective_date_status}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {ctrl.evidence_summary && (
+                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 pl-1">
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">Observation: </span>
+                    {ctrl.evidence_summary}
+                  </p>
+                )}
+
+                {ctrl.remediation && (
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 pl-1 italic">
+                    <span className="font-semibold text-slate-600 dark:text-slate-300 not-italic">Remediation: </span>
+                    {ctrl.remediation}
+                  </p>
+                )}
+              </div>
+            ))}
+            {filteredControls.length === 0 && (
+              <div className="p-8 text-center text-xs text-slate-400">
+                No controls match the selected filter.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
 
       {/* Section 33 Statutory Penalties Table */}
       {report?.statutory_penalties && (
