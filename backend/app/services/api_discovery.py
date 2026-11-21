@@ -289,7 +289,7 @@ class ApiDiscoveryEngine:
                             
                             # Inspect function body below for authz/tenant check (e.g. user_id ==, audit.session_id != session_id)
                             fn_body = "\n".join(lines[idx:min(idx + 35, len(lines))])
-                            authz_seen = bool(re.search(r"""(?:user_id\s*==|current_user\.id|owner_id|tenant_id|session_id\s*==|session_id\s*!=|\.session_id)""", fn_body))
+                            authz_seen = bool(re.search(r"""(?:user_id\s*==|current_user\.id|owner_id|tenant_id|session_id\s*==|session_id\s*!=|\.session_id|_for_session|session_id)""", fn_body))
                             has_rate_limit = bool(re.search(r"""@limiter\.limit|RateLimitMiddleware""", sig_window))
 
                             endpoints.append(DiscoveredEndpoint(

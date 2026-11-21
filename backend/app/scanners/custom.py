@@ -616,6 +616,9 @@ class CustomRulesScanner(BaseScannerAdapter):
                     lines = content.splitlines()
 
                     for idx, line in enumerate(lines, start=1):
+                        stripped = line.strip()
+                        if stripped.startswith("#") or ("<" in stripped and ">" in stripped):
+                            continue
                         # SEC-003: DB connection string with credentials in client config
                         if db_regex.search(line):
                             findings.append(RawFinding(

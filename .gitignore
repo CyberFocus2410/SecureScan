@@ -12,6 +12,7 @@ backend/securescan_dev.db
 tmp/
 temp/
 test_out.json
+*_report.json
 
 # Python
 __pycache__/

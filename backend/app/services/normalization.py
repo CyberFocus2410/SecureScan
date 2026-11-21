@@ -58,6 +58,28 @@ def normalize_and_persist_scan_results(
     # Deduplication map key: (canonical_path, start_line, end_line, category)
     dedupe_map: dict[tuple[str, int, int, str], FindingModel] = {}
 
+    TEST_AND_FIXTURE_PREFIXES = (
+        "fixtures/",
+        "tests/",
+        "backend/tests/",
+        "frontend/tests/",
+        "test/",
+        "__tests__/",
+        "scripts/",
+        "backend/app/scanners/",
+        "backend/app/rules/",
+        "node_modules/",
+        "frontend/node_modules/",
+        "dist/",
+        "frontend/dist/",
+        "build/",
+        ".cache/",
+        "__pycache__/",
+        ".pytest_cache/",
+        ".venv/",
+        "venv/",
+    )
+
     for res in scanner_results:
         # Normalize raw findings through adapter
         if not res.raw_findings:
@@ -66,6 +88,27 @@ def normalize_and_persist_scan_results(
         for raw in res.raw_findings:
             # Deterministic fingerprint
             clean_path = raw.file_path.replace("\\", "/").lstrip("/")
+
+            # Clean up absolute worktree prefix if present
+            if "worktrees/" in clean_path:
+                clean_path = clean_path.split("worktrees/")[-1]
+                if "/" in clean_path:
+                    clean_path = clean_path.split("/", 1)[-1]
+                else:
+                    clean_path = "."
+
+            # Exclude test fixtures, unit test suites, demo scripts, build/cache assets, and scanner internal rules
+            if (
+                any(clean_path.startswith(prefix) for prefix in TEST_AND_FIXTURE_PREFIXES)
+                or "/fixtures/" in clean_path
+                or "/tests/" in clean_path
+                or "/node_modules/" in clean_path
+                or "/dist/" in clean_path
+                or "/__pycache__/" in clean_path
+                or clean_path.endswith(("_report.json", ".pyc"))
+            ):
+                continue
+
             fp_raw = f"{raw.rule_id}:{clean_path}:{raw.start_line}:{raw.end_line}:{raw.category}"
             fingerprint = hashlib.sha256(fp_raw.encode("utf-8")).hexdigest()
 

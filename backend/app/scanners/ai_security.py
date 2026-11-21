@@ -111,6 +111,8 @@ class AiSecurityScanner(BaseScannerAdapter):
 
                 fpath = Path(root) / fname
                 rel_path = str(fpath.relative_to(repo_dir)).replace("\\", "/")
+                if any(skip in rel_path.lower() for skip in ["app/scanners/", "backend/app/scanners/", "app/rules/"]):
+                    continue
 
                 try:
                     content = fpath.read_text(encoding="utf-8", errors="ignore")

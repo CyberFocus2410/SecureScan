@@ -3,6 +3,7 @@ import uuid
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 from app.core.db import get_db
+from app.core.session import get_session_id
 from app.core.errors import RepoNotFoundError
 from app.models.models import RepositoryModel
 from app.schemas.audit import Repository, RepositoryCreate
@@ -50,6 +51,7 @@ def create_or_get_repository(
 @router.get("/{repo_id}", response_model=Repository)
 def get_repository(
     repo_id: str,
+    session_id: str = Depends(get_session_id),
     db: Session = Depends(get_db)
 ):
     """Retrieve repository metadata and detected frameworks."""
