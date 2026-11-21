@@ -26,6 +26,13 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 COPY backend/ /app/
 COPY policies/ /policies/
 
+# Create non-root system user and drop root privileges (P2: iac-docker-root-user)
+RUN groupadd -g 10001 securescan && \
+    useradd -u 10001 -g securescan -s /bin/bash -m securescan && \
+    chown -R securescan:securescan /app /policies
+
+USER securescan
+
 EXPOSE 8000
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
