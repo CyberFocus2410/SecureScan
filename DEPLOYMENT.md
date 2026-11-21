@@ -118,7 +118,7 @@ If you prefer serverless/managed platforms without managing Docker VMs:
    - `WEBHOOK_SECRET`: `your_random_hmac_secret_key`
 
 > [!TIP]
-> You can also paste the contents of `.env.render` directly into Render Dashboard via **Environment -> Add from .env** for instant one-click configuration.
+> You can also paste the contents of `render.env.example` directly into Render Dashboard via **Environment -> Add from .env** for instant one-click configuration.
 
 #### Step 2: Deploy Frontend (Vercel)
 1. Go to [Vercel.com](https://vercel.com) and click **"Add New Project"**.

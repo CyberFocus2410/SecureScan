@@ -87,7 +87,7 @@ RATE_LIMIT_ENABLED=true
 RATE_LIMIT_REQUESTS_PER_MINUTE=120
 
 # Webhook Cryptographic Verification
-WEBHOOK_SECRET="change-this-to-a-secure-random-hmac-key"
+WEBHOOK_SECRET="<configured-via-environment-variable>"
 ```
 
 No breaking migration or database modifications were required.
