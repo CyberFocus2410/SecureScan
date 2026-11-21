@@ -1,0 +1,16 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: insecure-deployment
+spec:
+  replicas: 1
+  template:
+    spec:
+      hostNetwork: true
+      hostPID: true
+      containers:
+        - name: app
+          image: myapp:latest
+          securityContext:
+            privileged: true
+            runAsNonRoot: false

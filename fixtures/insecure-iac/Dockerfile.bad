@@ -1,0 +1,12 @@
+# Insecure Dockerfile for testing Step 5 detectors
+FROM python:latest
+
+# Missing USER directive (runs as root by default)
+ENV API_KEY="sk_live_test_insecure_secret_layer_12345"
+ARG DB_PASSWORD="hardcoded_db_password_in_layer"
+
+WORKDIR /app
+COPY . /app
+
+RUN echo "Installing packages..."
+CMD ["python", "app.py"]

@@ -22,6 +22,7 @@ SPECIFIC_SECRET_PATTERNS = [
     (re.compile(r"(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{36,255}"), "github-token"),
     (re.compile(r"glpat-[0-9a-zA-Z\-_]{20,255}"), "gitlab-token"),
     (re.compile(r"xox[baprs]-[0-9]{10,13}-[0-9]{10,13}[a-zA-Z0-9-]*"), "slack-token"),
+    (re.compile(r"sk-(?:proj|ant|live|test)?[a-zA-Z0-9_\-]{20,255}"), "ai-api-key"),
     (re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----[\s\S]+?-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"), "private-key"),
 ]
 

@@ -10,11 +10,21 @@ import {
   ScannerRun,
   AuditEvent,
   RemediationAction,
-  SecurityCoverageResponse
+  SecurityCoverageResponse,
+  Target,
+  TargetVerification,
+  ScanScope,
+  RiskIntelligenceData,
+  CompareResult,
+  AuditListItem,
+  DPDPReadinessReport
 } from '../types/contracts';
 import * as mockData from './mockData';
 
-const BASE_URL = `${import.meta.env.VITE_API_BASE_URL || ''}/api/v1`;
+const RAW_BASE = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '')
+  .replace(/\/api\/v1\/?$/, '')
+  .replace(/\/+$/, '');
+const BASE_URL = `${RAW_BASE}/api/v1`;
 
 // Session management
 export function getSessionId(): string {
@@ -157,5 +167,177 @@ export async function explainFinding(findingId: string, includeRiskContext = tru
   if (!res.ok) throw new Error('Failed to explain finding');
   return res.json();
 }
+
+export interface ToolDiagnosticItem {
+  category: string;
+  primary_tool: string;
+  primary_installed: boolean;
+  primary_version: string | null;
+  fallback_tool: string;
+  fallback_available: boolean;
+  active_engine: string;
+  status: 'PASS' | 'FALLBACK_ACTIVE' | 'FAIL';
+  details: string;
+}
+
+export interface ToolHealthResponse {
+  status: 'HEALTHY' | 'DEGRADED';
+  total_areas: number;
+  primary_count: number;
+  fallback_count: number;
+  failed_count: number;
+  sandbox: {
+    active_engine: string;
+    environment: string;
+    fail_closed_enforced: boolean;
+  };
+  tools: ToolDiagnosticItem[];
+}
+
+export async function fetchToolHealth(): Promise<ToolHealthResponse> {
+  const res = await fetch(`${BASE_URL}/admin/tools`);
+  if (!res.ok) throw new Error('Tool diagnostics check failed');
+  return res.json();
+}
+
+export async function createTarget(url: string, targetType = 'WEBSITE', name?: string): Promise<Target> {
+  const res = await fetch(`${BASE_URL}/targets`, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify({ url, target_type: targetType, name }),
+  });
+  if (!res.ok) throw new Error('Failed to create target');
+  return res.json();
+}
+
+export async function listTargets(): Promise<Target[]> {
+  const res = await fetch(`${BASE_URL}/targets`, { headers: getHeaders() });
+  if (!res.ok) throw new Error('Failed to list targets');
+  return res.json();
+}
+
+export async function requestVerificationChallenge(targetId: string, method = 'DNS_TXT'): Promise<TargetVerification> {
+  const res = await fetch(`${BASE_URL}/targets/${targetId}/challenges`, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify({ method }),
+  });
+  if (!res.ok) throw new Error('Failed to request verification challenge');
+  return res.json();
+}
+
+export async function verifyTarget(targetId: string, verificationId?: string, proof?: Record<string, unknown>): Promise<{ verified: boolean; message: string }> {
+  const res = await fetch(`${BASE_URL}/targets/${targetId}/verify`, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify({ verification_id: verificationId, proof }),
+  });
+  if (!res.ok) throw new Error('Failed to verify target');
+  return res.json();
+}
+
+export async function configureTargetScope(
+  targetId: string,
+  scope: { allowed_hosts?: string[]; allowed_paths?: string[]; excluded_paths?: string[]; max_rps?: number; max_crawl_depth?: number }
+): Promise<ScanScope> {
+  const res = await fetch(`${BASE_URL}/targets/${targetId}/scope`, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify(scope),
+  });
+  if (!res.ok) throw new Error('Failed to configure target scope');
+  return res.json();
+}
+
+export async function recordConsent(targetId: string, userId: string, termsVersion = '2.0'): Promise<any> {
+  const res = await fetch(`${BASE_URL}/targets/${targetId}/consent`, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify({ user_id: userId, terms_version: termsVersion }),
+  });
+  if (!res.ok) throw new Error('Failed to record consent');
+  return res.json();
+}
+
+export async function listAudits(): Promise<AuditListItem[]> {
+  const res = await fetch(`${BASE_URL}/audits`, { headers: getHeaders() });
+  if (!res.ok) throw new Error('Failed to list audits');
+  return res.json();
+}
+
+export async function cancelAudit(auditId: string): Promise<{ audit_id: string; status: string; message: string }> {
+  const res = await fetch(`${BASE_URL}/audits/${auditId}/cancel`, {
+    method: 'POST',
+    headers: getHeaders()
+  });
+  if (!res.ok) throw new Error('Failed to cancel audit');
+  return res.json();
+}
+
+export async function getRiskIntelligence(auditId: string): Promise<RiskIntelligenceData> {
+  const res = await fetch(`${BASE_URL}/audits/${auditId}/risk-intelligence`, { headers: getHeaders() });
+  if (!res.ok) throw new Error('Failed to fetch risk intelligence');
+  return res.json();
+}
+
+export async function compareAudits(auditId: string, baseAuditId: string): Promise<CompareResult> {
+  const res = await fetch(`${BASE_URL}/audits/${auditId}/compare?base_audit_id=${baseAuditId}`, {
+    headers: getHeaders()
+  });
+  if (!res.ok) throw new Error('Failed to compare audits');
+  return res.json();
+}
+
+export async function getFindingDetail(findingId: string): Promise<Finding> {
+  const res = await fetch(`${BASE_URL}/findings/${findingId}`, { headers: getHeaders() });
+  if (!res.ok) throw new Error('Failed to get finding detail');
+  return res.json();
+}
+
+export async function createFindingFixPr(findingId: string): Promise<{ status: string; branch_name: string; pr_number?: number; pr_url?: string; is_draft: boolean; message: string }> {
+  const res = await fetch(`${BASE_URL}/findings/${findingId}/create-pr`, {
+    method: 'POST',
+    headers: getHeaders()
+  });
+  if (!res.ok) throw new Error('Failed to create remediation PR');
+  return res.json();
+}
+
+export async function getDpdpReadiness(auditId: string): Promise<DPDPReadinessReport> {
+  const res = await fetch(`${BASE_URL}/audits/${auditId}/dpdp/readiness`, { headers: getHeaders() });
+  if (!res.ok) throw new Error('Failed to get DPDP readiness report');
+  return res.json();
+}
+
+export async function getSarifReport(auditId: string): Promise<string> {
+  const res = await fetch(`${BASE_URL}/audits/${auditId}/sarif`, { headers: getHeaders() });
+  if (!res.ok) throw new Error('Failed to export SARIF report');
+  return res.text();
+}
+
+export async function getMarkdownReport(auditId: string): Promise<string> {
+  const res = await fetch(`${BASE_URL}/audits/${auditId}/markdown`, { headers: getHeaders() });
+  if (!res.ok) throw new Error('Failed to export Markdown report');
+  return res.text();
+}
+
+export async function getFixPack(auditId: string, format = 'json'): Promise<any> {
+  const res = await fetch(`${BASE_URL}/audits/${auditId}/fix-pack?format=${format}`, { headers: getHeaders() });
+  if (!res.ok) throw new Error('Failed to export Fix Pack');
+  return format === 'json' ? res.json() : res.text();
+}
+
+export async function getSbomCycloneDx(auditId: string): Promise<any> {
+  const res = await fetch(`${BASE_URL}/audits/${auditId}/sbom/cyclonedx`, { headers: getHeaders() });
+  if (!res.ok) throw new Error('Failed to export CycloneDX SBOM');
+  return res.json();
+}
+
+export async function getSbomSpdx(auditId: string): Promise<any> {
+  const res = await fetch(`${BASE_URL}/audits/${auditId}/sbom/spdx`, { headers: getHeaders() });
+  if (!res.ok) throw new Error('Failed to export SPDX SBOM');
+  return res.json();
+}
+
 
 

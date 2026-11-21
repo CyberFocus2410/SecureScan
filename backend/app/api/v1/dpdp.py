@@ -157,3 +157,34 @@ def get_legal_exposure(
     items = evaluate_penalty_exposure(db, str(audit_id))
     return LegalExposureResponse(items=items)
 
+
+@router.get("/audits/{audit_id}/dpdp/readiness")
+def get_dpdp_readiness(
+    audit_id: UUID,
+    session_id: str = Depends(get_session_id),
+    db: Session = Depends(get_db)
+):
+    """Retrieve complete 0-100 DPDP Act 2023 readiness evaluation, controls, and statutory ceilings (Step 10)."""
+    from app.dpdp.readiness import DPDPReadinessEngine
+
+    audit = db.query(AuditModel).filter(AuditModel.id == str(audit_id)).first()
+    if not audit:
+        raise HTTPException(status_code=404, detail="Audit not found")
+    if audit.session_id != session_id:
+        raise HTTPException(status_code=403, detail="Access forbidden: audit belongs to another session")
+
+    target_dir = settings.WORKTREE_STORAGE_DIR / str(audit_id)
+    if not target_dir.exists():
+        fixtures_dir = Path(__file__).resolve().parent.parent.parent.parent / "fixtures" / "dpdp-fixtures" / "identifiers_repo"
+        target_dir = fixtures_dir if fixtures_dir.exists() else Path(".")
+
+    profile = db.query(DpdpProfileModel).filter(DpdpProfileModel.audit_id == str(audit_id)).first()
+    profile_answers = profile.answers if profile else {}
+
+    report = DPDPReadinessEngine.evaluate_readiness(
+        target_dir=target_dir,
+        findings=[{"rule_id": f.rule_id, "severity": f.severity, "priority": getattr(f, "priority", "P2")} for f in audit.findings],
+        profile_answers=profile_answers
+    )
+    return report.to_dict()
+

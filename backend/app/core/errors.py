@@ -25,6 +25,13 @@ class ErrorCode(str, Enum):
     ERR_POLICY_LOAD_FAILED = "ERR_POLICY_LOAD_FAILED"
     ERR_REPORT_GENERATION_FAILED = "ERR_REPORT_GENERATION_FAILED"
     ERR_AI_PROVIDER_UNAVAILABLE = "ERR_AI_PROVIDER_UNAVAILABLE"
+    ERR_SANDBOX_UNAVAILABLE = "ERR_SANDBOX_UNAVAILABLE"
+    ERR_TARGET_NOT_FOUND = "ERR_TARGET_NOT_FOUND"
+    ERR_TARGET_NOT_VERIFIED = "ERR_TARGET_NOT_VERIFIED"
+    ERR_OUT_OF_SCOPE = "ERR_OUT_OF_SCOPE"
+    ERR_CONSENT_REQUIRED = "ERR_CONSENT_REQUIRED"
+    ERR_DAST_DISABLED = "ERR_DAST_DISABLED"
+    ERR_SSRF_BLOCKED = "ERR_SSRF_BLOCKED"
     ERR_INTERNAL_SERVER_ERROR = "ERR_INTERNAL_SERVER_ERROR"
 
 
@@ -120,6 +127,66 @@ class PolicyLoadError(SecureScanException):
             code=ErrorCode.ERR_POLICY_LOAD_FAILED,
             message=message,
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            details=details
+        )
+
+
+class TargetNotFoundError(SecureScanException):
+    def __init__(self, message: str = "Target not found", details: Any = None):
+        super().__init__(
+            code=ErrorCode.ERR_TARGET_NOT_FOUND,
+            message=message,
+            status_code=status.HTTP_404_NOT_FOUND,
+            details=details
+        )
+
+
+class TargetNotVerifiedError(SecureScanException):
+    def __init__(self, message: str = "Target ownership verification required before active testing", details: Any = None):
+        super().__init__(
+            code=ErrorCode.ERR_TARGET_NOT_VERIFIED,
+            message=message,
+            status_code=status.HTTP_403_FORBIDDEN,
+            details=details
+        )
+
+
+class OutOfScopeError(SecureScanException):
+    def __init__(self, message: str = "Request or host is outside recorded testing scope", details: Any = None):
+        super().__init__(
+            code=ErrorCode.ERR_OUT_OF_SCOPE,
+            message=message,
+            status_code=status.HTTP_400_BAD_REQUEST,
+            details=details
+        )
+
+
+class ConsentRequiredError(SecureScanException):
+    def __init__(self, message: str = "Testing consent record required before scan execution", details: Any = None):
+        super().__init__(
+            code=ErrorCode.ERR_CONSENT_REQUIRED,
+            message=message,
+            status_code=status.HTTP_403_FORBIDDEN,
+            details=details
+        )
+
+
+class DastDisabledError(SecureScanException):
+    def __init__(self, message: str = "Active DAST testing is globally disabled via kill switch", details: Any = None):
+        super().__init__(
+            code=ErrorCode.ERR_DAST_DISABLED,
+            message=message,
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            details=details
+        )
+
+
+class SSRFBlockedError(SecureScanException):
+    def __init__(self, message: str = "Target address blocked by anti-SSRF policy (private/loopback/cloud metadata/government domain)", details: Any = None):
+        super().__init__(
+            code=ErrorCode.ERR_SSRF_BLOCKED,
+            message=message,
+            status_code=status.HTTP_400_BAD_REQUEST,
             details=details
         )
 

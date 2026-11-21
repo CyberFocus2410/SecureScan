@@ -1,13 +1,14 @@
-"""Sandboxed container execution runner (Architecture §5, NFR-03)."""
+"""Sandboxed container execution runner (Architecture §5, NFR-03, ADR-002)."""
 import re
 import shutil
 import subprocess
 import time
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 from app.core.limits import limits
 from app.core.errors import SecureScanException, ErrorCode
+from app.sandbox import get_sandbox_engine, SandboxUnavailableError
 
 # ANSI terminal escape sequence cleaner
 ANSI_ESCAPE_REGEX = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
@@ -63,30 +64,9 @@ def execute_sandboxed_command(
     timeout_seconds: int | None = None
 ) -> Tuple[int, str, str, int]:
     """
-    Execute scanner command with timeout and stripped terminal output.
+    Execute scanner command through active sandbox engine (Docker, Bubblewrap, or SubprocessDev).
+    Enforces timeout, resource constraints, terminal escape stripping, and production fail-closed.
     Returns (returncode, stdout, stderr, duration_ms).
     """
-    timeout = timeout_seconds or limits.SCANNER_TOOL_TIMEOUT_SECONDS
-    start_time = time.time()
-
-    try:
-        proc = subprocess.run(
-            cmd,
-            cwd=str(worktree_dir),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            timeout=timeout
-        )
-        duration_ms = int((time.time() - start_time) * 1000)
-        stdout = strip_terminal_escapes(proc.stdout)
-        stderr = strip_terminal_escapes(proc.stderr)
-        return proc.returncode, stdout, stderr, duration_ms
-
-    except subprocess.TimeoutExpired:
-        duration_ms = int((time.time() - start_time) * 1000)
-        return -1, "", f"Execution timed out after {timeout} seconds", duration_ms
-    except Exception as exc:
-        duration_ms = int((time.time() - start_time) * 1000)
-        return -2, "", f"Process execution failed: {str(exc)}", duration_ms
-
+    engine = get_sandbox_engine()
+    return engine.execute(cmd, worktree_dir, timeout_seconds=timeout_seconds)

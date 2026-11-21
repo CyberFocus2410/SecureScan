@@ -43,7 +43,6 @@ services:
       DATABASE_URL: postgresql://securescan:securescan_secret@postgres:5432/securescan
       REDIS_URL: redis://redis:6379/0
       ENVIRONMENT: production
-      AS_OF_DATE: "2026-11-14"
     ports:
       - "8000:8000"
     depends_on:
@@ -60,15 +59,13 @@ services:
   worker:
     build:
       context: .
-      dockerfile: infrastructure/docker/worker.Dockerfile
+      dockerfile: infrastructure/docker/static-worker.Dockerfile
     container_name: securescan-worker
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://securescan:securescan_secret@postgres:5432/securescan
       REDIS_URL: redis://redis:6379/0
-      AS_OF_DATE: "2026-11-14"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      SANDBOX_BACKEND: auto
     depends_on:
       postgres:
         condition: service_healthy
@@ -86,7 +83,52 @@ services:
     depends_on:
       - api
 
+  dast-worker:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/dast-worker.Dockerfile
+    container_name: securescan-dast-worker
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://securescan:securescan_secret@postgres:5432/securescan
+      REDIS_URL: redis://redis:6379/0
+      DAST_ENABLED: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - default
+      - securescan-lab-net
+
+  # SecureScan 2.0 Lab Targets (Profile: lab)
+  # Isolated to securescan-lab-net with internal: true (Zero external egress)
+  lab-juiceshop:
+    image: bkimminich/juice-shop:v17.1.1
+    container_name: securescan-lab-juiceshop
+    restart: unless-stopped
+    profiles:
+      - lab
+    networks:
+      - securescan-lab-net
+
+  lab-dvwa:
+    image: vulnerables/web-dvwa:latest
+    container_name: securescan-lab-dvwa
+    restart: unless-stopped
+    profiles:
+      - lab
+    networks:
+      - securescan-lab-net
+
 volumes:
   postgres_data:
   redis_data:
+
+networks:
+  default:
+  securescan-lab-net:
+    internal: true
+
 

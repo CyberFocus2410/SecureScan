@@ -2,6 +2,7 @@
 import json
 import uuid
 import pytest
+from app.core.config import settings
 from app.services.reports import create_or_run_report
 from app.reporting.pdf_export import generate_pdf_report
 from app.reporting.json_export import generate_json_report
@@ -131,7 +132,7 @@ def test_at17_report_contents_and_mandatory_sections(db_session):
     # Assert mandatory header and metadata
     assert report_dict["metadata"]["mandatory_header"] == "Developer-assistance report — not a security certificate or legal opinion."
     assert report_dict["repository"]["commit_sha"] == "fedcba98765432101234567890abcdef12345678"
-    assert report_dict["metadata"]["as_of_date"] == "2026-11-14"
+    assert report_dict["metadata"]["as_of_date"] == settings.AS_OF_DATE
 
     # Assert executive summary has no headline grade
     assert "headline_grade" in report_dict["executive_summary"]

@@ -1,6 +1,7 @@
 """DPDP commencement and effective date calculation engine (D-07, FR-DPD-02)."""
 from datetime import date, datetime
 from typing import Tuple, Optional
+from app.core.config import settings
 from app.schemas.enums import EffectiveDateStatus
 
 
@@ -32,10 +33,15 @@ PHASE_3_PROVISIONS = {
 
 def parse_date(d: date | str | None) -> date:
     if d is None:
-        return date(2026, 11, 14)  # Default pinned audit as_of_date
+        if getattr(settings, "AS_OF_DATE", None):
+            try:
+                return datetime.strptime(str(settings.AS_OF_DATE)[:10], "%Y-%m-%d").date()
+            except Exception:
+                pass
+        return date.today()
     if isinstance(d, date):
         return d
-    return datetime.strptime(d[:10], "%Y-%m-%d").date()
+    return datetime.strptime(str(d)[:10], "%Y-%m-%d").date()
 
 
 def compute_effective_date_status(

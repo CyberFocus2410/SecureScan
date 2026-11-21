@@ -163,11 +163,12 @@ def collect_audit_report_data(audit_id: str, db: Session) -> dict[str, Any]:
 
     bundle = load_and_validate_policies()
 
+    as_of_date_val = parse_date(None)
     dpdp_controls_list = []
     for dc in dpdp_controls_db:
         ctrl_def = next((c for c in bundle.dpdp_controls.controls if c.id == dc.control_id), None)
         prov = f"{ctrl_def.act_section} {ctrl_def.rules_ref}" if ctrl_def else dc.control_id
-        eff_status_enum, eff_date_obj, eff_rationale = compute_effective_date_status(prov, AS_OF_DATE_DEFAULT)
+        eff_status_enum, eff_date_obj, eff_rationale = compute_effective_date_status(prov, as_of_date_val)
         eff_status = eff_status_enum.value
         eff_date = eff_date_obj.strftime("%d %B %Y") if eff_date_obj else "Date not yet notified"
         if ctrl_def and ctrl_def.legal_source:
@@ -276,7 +277,7 @@ def collect_audit_report_data(audit_id: str, db: Session) -> dict[str, Any]:
             "stage": getattr(audit, "current_stage", None) or getattr(audit, "stage", "QUEUED"),
             "scopes": audit.scopes if audit.scopes else ["security", "dpdp"],
             "mandatory_header": "Developer-assistance report — not a security certificate or legal opinion.",
-            "as_of_date": AS_OF_DATE_DEFAULT.isoformat(),
+            "as_of_date": as_of_date_val.isoformat(),
             "report_version": "1.0.0"
         },
         "repository": {

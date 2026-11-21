@@ -1,0 +1,11 @@
+# Pinned SHA base image and non-root execution
+FROM python:3.11.8-slim@sha256:d48ba120023a1a3648e58a2e460be0c3bf29b63a23ab719df6c21e64627ea1bf
+
+RUN groupadd -r securescan && useradd -r -g securescan securescan
+
+WORKDIR /app
+COPY --chown=securescan:securescan . /app
+
+USER securescan
+
+CMD ["python", "app.py"]

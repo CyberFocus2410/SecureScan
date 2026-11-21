@@ -62,7 +62,7 @@ SecureScan AI
 ## Getting Started
 
 ### Prerequisites
-- **Python 3.11+** (Python 3.12 recommended)
+- **Python 3.11+** (Python 3.11.9 recommended; `PYTHON_VERSION=3.11.9` on Render)
 - **Node.js 18+** & **npm**
 - **Docker** (optional for local mock runner; required for sandboxed containerized scanner runs)
 
@@ -79,7 +79,7 @@ python -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 # Install dependencies
-pip install -r backend/requirements.txt
+pip install --prefer-binary -r backend/requirements.txt
 ```
 
 **Frontend Setup:**
@@ -91,7 +91,21 @@ cd ..
 
 ---
 
-### 2. Running the Application
+### 2. Running Tool Diagnostics & CI Gate
+
+SecureScan includes a unified CLI dispatcher:
+
+```bash
+# Run tool self-tests and sandbox diagnostics
+python securescan.py doctor
+
+# Evaluate CI gate thresholds against an audit
+python securescan.py ci --audit-id <audit_uuid> --fail-on P0
+```
+
+---
+
+### 3. Running the Application
 
 You can start both services concurrently:
 

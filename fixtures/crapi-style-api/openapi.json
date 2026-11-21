@@ -1,0 +1,33 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "crAPI Sample Vehicle API",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/vehicles": {
+      "get": {
+        "summary": "List vehicles",
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/v1/orders/{order_id}": {
+      "get": {
+        "summary": "Get order by ID",
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    }
+  }
+}

@@ -9,7 +9,8 @@ from sqlalchemy import (
     ForeignKey,
     JSON,
     Text,
-    Date
+    Date,
+    Boolean
 )
 from sqlalchemy.orm import relationship
 from app.core.db import Base
@@ -41,6 +42,7 @@ class AuditModel(Base):
     id = Column(String(36), primary_key=True, default=generate_uuid)
     repository_id = Column(String(36), ForeignKey("repositories.id"), nullable=False, index=True)
     session_id = Column(String(64), nullable=False, index=True)
+    target_id = Column(String(36), ForeignKey("targets.id", ondelete="SET NULL"), nullable=True, index=True)
     commit_sha = Column(String(40), nullable=True)
     scopes = Column(JSON, default=list, nullable=False)
     status = Column(String(30), default="QUEUED", nullable=False, index=True)
@@ -56,6 +58,9 @@ class AuditModel(Base):
     events = relationship("AuditEventModel", back_populates="audit", cascade="all, delete-orphan")
     remediations = relationship("RemediationActionModel", back_populates="audit", cascade="all, delete-orphan")
     reports = relationship("ReportArtifactModel", back_populates="audit", cascade="all, delete-orphan")
+    tool_runs = relationship("ToolRunModel", back_populates="audit", cascade="all, delete-orphan")
+    sbom_components = relationship("SbomComponentModel", back_populates="audit", cascade="all, delete-orphan")
+    target = relationship("TargetModel", back_populates="audits")
 
 
 class ScannerRunModel(Base):
@@ -72,6 +77,24 @@ class ScannerRunModel(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     audit = relationship("AuditModel", back_populates="scanner_runs")
+
+
+class ToolRunModel(Base):
+    """Execution telemetry and coverage tracking per tool run (Step 2, ADR-002)."""
+    __tablename__ = "tool_runs"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    audit_id = Column(String(36), ForeignKey("audits.id", ondelete="CASCADE"), nullable=False, index=True)
+    tool = Column(String(50), nullable=False, index=True)
+    version = Column(String(50), nullable=False)
+    exit_status = Column(String(30), nullable=False)
+    duration_ms = Column(Integer, default=0, nullable=False)
+    coverage_metrics = Column(JSON, default=dict)
+    stdout_preview = Column(Text, nullable=True)
+    stderr_preview = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    audit = relationship("AuditModel", back_populates="tool_runs")
 
 
 class FindingModel(Base):
@@ -97,6 +120,38 @@ class FindingModel(Base):
     technical_fix = Column(Text, nullable=True)
     validation_steps = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Unified Finding Model Extensions (Section 6, ADR-002, Step 3)
+    engine = Column(String(30), nullable=True)
+    tool = Column(String(50), nullable=True)
+    tool_version = Column(String(50), nullable=True)
+    verified_state = Column(String(30), nullable=True)
+    exploitability = Column(String(30), nullable=True)
+    exposure = Column(String(30), nullable=True)
+    data_sensitivity = Column(String(30), nullable=True)
+    source = Column(String(255), nullable=True)
+    data_flow = Column(JSON, default=list)
+    sink = Column(String(255), nullable=True)
+    affected = Column(String(512), nullable=True)
+    request_evidence = Column(Text, nullable=True)
+    response_evidence = Column(Text, nullable=True)
+    standards = Column(JSON, default=dict)
+    priority = Column(String(10), nullable=True)
+    plain_title = Column(String(255), nullable=True)
+    plain_summary = Column(Text, nullable=True)
+    why_it_matters = Column(Text, nullable=True)
+    how_to_fix = Column(Text, nullable=True)
+    how_to_verify_fix = Column(Text, nullable=True)
+    fix_effort = Column(String(50), nullable=True)
+    fix_prompt = Column(Text, nullable=True)
+    related_finding_ids = Column(JSON, default=list)
+    attack_chain_id = Column(String(36), nullable=True)
+    first_seen_scan_id = Column(String(36), nullable=True)
+    status = Column(String(30), default="open", nullable=False)
+    status_reason = Column(Text, nullable=True)
+    status_expires_at = Column(DateTime, nullable=True)
+    status_updated_at = Column(DateTime, nullable=True)
+    signals = Column(JSON, default=list)
 
     audit = relationship("AuditModel", back_populates="findings")
     evidence = relationship("EvidenceModel", back_populates="finding", cascade="all, delete-orphan")
@@ -258,4 +313,165 @@ class AuditEventModel(Base):
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     audit = relationship("AuditModel", back_populates="events")
+
+
+class TargetModel(Base):
+    """Owner-verified testing target (repositories, websites, APIs)."""
+    __tablename__ = "targets"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    session_id = Column(String(64), nullable=False, index=True)
+    name = Column(String(255), nullable=True)
+    target_type = Column(String(20), nullable=False)  # REPOSITORY, WEBSITE, API
+    url = Column(String(512), nullable=False, index=True)
+    verified = Column(Boolean, default=False, nullable=False)
+    verified_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    audits = relationship("AuditModel", back_populates="target")
+    verifications = relationship("TargetVerificationModel", back_populates="target", cascade="all, delete-orphan")
+    scopes = relationship("ScanScopeModel", back_populates="target", cascade="all, delete-orphan")
+    consents = relationship("ConsentRecordModel", back_populates="target", cascade="all, delete-orphan")
+    test_accounts = relationship("TestAccountModel", back_populates="target", cascade="all, delete-orphan")
+    assets = relationship("AssetModel", back_populates="target", cascade="all, delete-orphan")
+    endpoints = relationship("EndpointModel", back_populates="target", cascade="all, delete-orphan")
+
+
+class TargetVerificationModel(Base):
+    """Ownership verification records (DNS TXT, well-known file, meta tag, repo token)."""
+    __tablename__ = "target_verifications"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    target_id = Column(String(36), ForeignKey("targets.id", ondelete="CASCADE"), nullable=False, index=True)
+    verification_method = Column(String(30), nullable=False)  # DNS_TXT, WELL_KNOWN_FILE, META_TAG, REPO_TOKEN
+    token = Column(String(128), nullable=False)
+    status = Column(String(20), default="PENDING", nullable=False)  # PENDING, VERIFIED, EXPIRED, FAILED
+    proof_details = Column(JSON, default=dict)
+    verified_at = Column(DateTime, nullable=True)
+    expires_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    target = relationship("TargetModel", back_populates="verifications")
+
+
+class ScanProfileModel(Base):
+    """Scan execution profile specifying intensity and budget limits."""
+    __tablename__ = "scan_profiles"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    name = Column(String(100), nullable=False)
+    intensity = Column(String(20), default="STANDARD", nullable=False)  # PASSIVE, STANDARD, DEEP
+    max_rps = Column(Integer, default=5, nullable=False)
+    max_requests = Column(Integer, default=500, nullable=False)
+    max_duration_seconds = Column(Integer, default=1200, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class ScanScopeModel(Base):
+    """Target scope configuration constraining allowed paths and dropping dangerous operations."""
+    __tablename__ = "scan_scopes"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    target_id = Column(String(36), ForeignKey("targets.id", ondelete="CASCADE"), nullable=False, index=True)
+    allowed_hosts = Column(JSON, default=list, nullable=False)
+    allowed_paths = Column(JSON, default=list, nullable=False)
+    excluded_paths = Column(JSON, default=list, nullable=False)
+    max_rps = Column(Integer, default=5, nullable=False)
+    max_crawl_depth = Column(Integer, default=3, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    target = relationship("TargetModel", back_populates="scopes")
+
+
+class ConsentRecordModel(Base):
+    """Immutable legal consent audit record for authorized security assessment."""
+    __tablename__ = "consent_records"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    target_id = Column(String(36), ForeignKey("targets.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(String(64), nullable=False, index=True)
+    client_ip = Column(String(64), nullable=False)
+    terms_version = Column(String(20), default="2.0", nullable=False)
+    scope_hash = Column(String(64), nullable=False)
+    accepted_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    target = relationship("TargetModel", back_populates="consents")
+
+
+class TestAccountModel(Base):
+    """Encrypted test credentials for multi-account auth testing (purged/encrypted)."""
+    __tablename__ = "test_accounts"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    target_id = Column(String(36), ForeignKey("targets.id", ondelete="CASCADE"), nullable=False, index=True)
+    role = Column(String(50), nullable=False)  # user_a, user_b, admin
+    auth_type = Column(String(30), default="BEARER", nullable=False)
+    encrypted_credentials = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    target = relationship("TargetModel", back_populates="test_accounts")
+
+
+class AssetModel(Base):
+    """Discovered attack-surface assets (hosts, subdomains, open services)."""
+    __tablename__ = "assets"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    target_id = Column(String(36), ForeignKey("targets.id", ondelete="CASCADE"), nullable=False, index=True)
+    asset_type = Column(String(50), nullable=False)  # HOST, SUBDOMAIN, SERVICE, DB_PORT
+    value = Column(String(512), nullable=False)
+    first_seen_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    last_seen_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    target = relationship("TargetModel", back_populates="assets")
+
+
+class EndpointModel(Base):
+    """Discovered API endpoints forming the API inventory."""
+    __tablename__ = "endpoints"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    target_id = Column(String(36), ForeignKey("targets.id", ondelete="CASCADE"), nullable=False, index=True)
+    method = Column(String(10), nullable=False)
+    path = Column(String(1024), nullable=False)
+    auth_required = Column(String(20), default="UNKNOWN", nullable=False)
+    discovered_via = Column(String(50), default="SOURCE", nullable=False)
+    pii_fields = Column(JSON, default=list)
+    rate_limited = Column(String(20), default="UNKNOWN")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    target = relationship("TargetModel", back_populates="endpoints")
+
+
+class SbomComponentModel(Base):
+    """Software Bill of Materials (SBOM) dependency components."""
+    __tablename__ = "sbom_components"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    audit_id = Column(String(36), ForeignKey("audits.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    version = Column(String(100), nullable=False)
+    ecosystem = Column(String(50), nullable=False)
+    purl = Column(String(512), nullable=True)
+    license = Column(String(100), nullable=True)
+    is_direct = Column(Boolean, default=True, nullable=False)
+    vulnerabilities_count = Column(Integer, default=0, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    audit = relationship("AuditModel", back_populates="sbom_components")
+
+
+class ScanComparisonModel(Base):
+    """Diff and comparison metrics across sequential scans."""
+    __tablename__ = "scan_comparisons"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    base_audit_id = Column(String(36), ForeignKey("audits.id", ondelete="CASCADE"), nullable=False, index=True)
+    target_audit_id = Column(String(36), ForeignKey("audits.id", ondelete="CASCADE"), nullable=False, index=True)
+    new_findings_count = Column(Integer, default=0, nullable=False)
+    fixed_findings_count = Column(Integer, default=0, nullable=False)
+    recurrent_findings_count = Column(Integer, default=0, nullable=False)
+    comparison_json = Column(JSON, default=dict)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
 

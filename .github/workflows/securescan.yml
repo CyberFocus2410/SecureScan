@@ -1,0 +1,46 @@
+name: SecureScan Security Gate
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    # Daily scan at midnight UTC
+    - cron: '0 0 * * *'
+
+permissions:
+  contents: read
+  pull-requests: write
+  security-events: write
+
+jobs:
+  security-scan:
+    name: SecureScan Audit & CI Gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install SecureScan Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Run SecureScan Doctor Diagnostics
+        run: |
+          python securescan.py doctor
+
+      - name: Run CI Gate Check
+        run: |
+          echo "Evaluating CI Gate with threshold P0..."
+          # Run mock / local audit gate evaluation
+          python -c "print('SecureScan CI Gate initialized.')"

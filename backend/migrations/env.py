@@ -9,7 +9,7 @@ backend_dir = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(backend_dir))
 
 from app.core.config import settings
-from app.core.db import Base
+from app.core.db import Base, db_url
 import app.models  # register models
 
 config = context.config
@@ -21,7 +21,7 @@ target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
-    url = settings.DATABASE_URL
+    url = config.get_main_option("sqlalchemy.url") or db_url
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -35,7 +35,8 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
     configuration = config.get_section(config.config_ini_section) or {}
-    configuration["sqlalchemy.url"] = settings.DATABASE_URL
+    chosen_url = config.get_main_option("sqlalchemy.url") or db_url
+    configuration["sqlalchemy.url"] = chosen_url
     connectable = engine_from_config(
         configuration,
         prefix="sqlalchemy.",

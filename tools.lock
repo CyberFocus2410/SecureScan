@@ -1,0 +1,109 @@
+# SecureScan 2.0 Pinned Static Tool Manifest
+# Version lock and integrity hashes for reproducible worker builds (ADR-002, Step 2)
+# Generated: 2026-11-20
+
+tools:
+  semgrep:
+    version: "1.102.0"
+    type: "pip"
+    package: "semgrep==1.102.0"
+    description: "Multi-language lightweight SAST and taint engine"
+    sha256: "9792ba2bf43cf1832049e9177a67f139d068aeef1d8984920251ea8974a622eb"
+
+  gitleaks:
+    version: "8.21.2"
+    type: "binary"
+    release_url: "https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz"
+    description: "High-speed secret detection in files and git commit history"
+    sha256: "bf6d9f8c6eb89df0bcf5f70b777a83d038fdb2cf428dc3253b276707324ba5dc"
+
+  trufflehog:
+    version: "3.88.3"
+    type: "binary"
+    release_url: "https://github.com/trufflesecurity/trufflehog/releases/download/v3.88.3/trufflehog_3.88.3_linux_amd64.tar.gz"
+    description: "Secondary secret detection and verified credential analysis"
+    sha256: "c553eb6c35cb5c9e2b1ea92bb87cb66ca94cfbfa61d1525048ba8d234a98f1a2"
+
+  osv-scanner:
+    version: "1.9.2"
+    type: "binary"
+    release_url: "https://github.com/google/osv-scanner/releases/download/v1.9.2/osv-scanner_linux_amd64"
+    description: "Google OSV database vulnerability scanner for open-source dependencies"
+    sha256: "b90ea5098ff48a605fbe147b2ff924375b42d7936a7ad048386a51d8b2d1bb0e"
+
+  trivy:
+    version: "0.58.0"
+    type: "binary"
+    release_url: "https://github.com/aquasecurity/trivy/releases/download/v0.58.0/trivy_0.58.0_Linux-64bit.tar.gz"
+    description: "Container, filesystem, IaC and lockfile vulnerability scanner"
+    sha256: "2f28122c4a9616dcf4dbdd74bc48b30960538a7c646ae8071853d4fa943e9447"
+
+  syft:
+    version: "1.19.0"
+    type: "binary"
+    release_url: "https://github.com/anchore/syft/releases/download/v1.19.0/syft_1.19.0_linux_amd64.tar.gz"
+    description: "Software Bill of Materials (SBOM) generator in CycloneDX & SPDX"
+    sha256: "e44c20fbf51ec6b6bf0ef386d8a4e8d356c3ee7cae7c5b62b0e6dfbb3a7266a0"
+
+  bandit:
+    version: "1.8.0"
+    type: "pip"
+    package: "bandit==1.8.0"
+    description: "Python AST vulnerability scanner"
+    sha256: "647f6312450ba13612503254ee8c3dcadcbef9fca9be9ae5139a6e1194eeea06"
+
+  checkov:
+    version: "3.2.355"
+    type: "pip"
+    package: "checkov==3.2.355"
+    description: "Infrastructure as Code (IaC) security scanner (Terraform, Dockerfile, K8s)"
+    sha256: "8e09f5fa4561ea55d6eb071f4340d8544cb430263f35cce8340d8a556d4c0628"
+
+  hadolint:
+    version: "2.12.0"
+    type: "binary"
+    release_url: "https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64"
+    description: "Dockerfile static analysis and best practice validator"
+    sha256: "56de6d5e5ec427e12d619d854475451e4de0b7da607739a163a86301996d8fe6"
+
+  zizmor:
+    version: "1.1.1"
+    type: "binary"
+    release_url: "https://github.com/woodruffw/zizmor/releases/download/v1.1.1/zizmor-x86_64-unknown-linux-musl.tar.gz"
+    description: "Static analysis for GitHub Actions security risks and workflow injections"
+    sha256: "d54d9230623fcb19d28c3a9f0298aefba6244f6f7eb32cbefd5789f2cfc7a884"
+
+  actionlint:
+    version: "1.7.4"
+    type: "binary"
+    release_url: "https://github.com/rhysd/actionlint/releases/download/v1.7.4/actionlint_1.7.4_linux_amd64.tar.gz"
+    description: "Static syntax and security checker for GitHub Actions workflows"
+    sha256: "b6214152fb4db8f36c84133ae3da38b3fc33342557e93da2774db37a85e68c07"
+
+  retirejs:
+    version: "5.2.4"
+    type: "npm"
+    package: "retire@5.2.4"
+    description: "Frontend JavaScript library and bundle vulnerability scanner"
+    sha256: "48ad53f3e6a978f6a9eecba083769c0d35a9675306ec4a29a0082d1c6861ca31"
+
+  pip-audit:
+    version: "2.7.3"
+    type: "pip"
+    package: "pip-audit==2.7.3"
+    description: "PyPI dependency vulnerability auditor using PyPA advisory database"
+    sha256: "677d206f3e0d8b4e7ec89f813c9df3c08976b3f71c4c965b09f4ba2c7cfc0be9"
+
+  eslint-plugin-security:
+    version: "3.0.1"
+    type: "npm"
+    package: "eslint-plugin-security@3.0.1"
+    description: "Security lint rules for Node.js and client JavaScript code"
+    sha256: "8e750fc1b017bca434ce8a85f9bc68e0e7a2b9e289bf53b94cf93f9ef78dae33"
+
+  gosec:
+    version: "2.21.4"
+    type: "binary"
+    release_url: "https://github.com/securego/gosec/releases/download/v2.21.4/gosec_2.21.4_linux_amd64.tar.gz"
+    description: "Go source code AST security analysis engine"
+    sha256: "45053702a11fa35ce82d8c903828c21a44138e6473199c15fe6b856cbf953609"

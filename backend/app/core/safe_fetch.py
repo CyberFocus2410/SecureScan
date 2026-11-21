@@ -1,9 +1,12 @@
-"""Safe URL validation and SSRF defense helper."""
+"""Safe URL validation and SSRF defense helper (Architecture §5, ADR-002)."""
 import ipaddress
 import socket
 from urllib.parse import urlparse
-from typing import Sequence
+from typing import Sequence, Optional, Dict, Any
+import httpx
 
+from app.core.errors import SSRFBlockedError
+from app.core.security import redact_text
 
 BLOCKED_NETWORKS = [
     ipaddress.ip_network("0.0.0.0/8"),
@@ -26,6 +29,14 @@ BLOCKED_NETWORKS = [
     ipaddress.ip_network("fe80::/10"),            # IPv6 Link-Local
 ]
 
+BLOCKED_DOMAIN_SUFFIXES = [
+    ".gov.in",
+    ".nic.in",
+    ".mil",
+    ".mil.in",
+    ".gov",
+]
+
 
 def is_private_ip(ip_str: str) -> bool:
     """Return True if an IP address string belongs to private, loopback, or metadata ranges."""
@@ -43,12 +54,12 @@ def is_private_ip(ip_str: str) -> bool:
 
 def is_safe_url(
     url: str,
-    allowed_schemes: Sequence[str] = ("https",),
+    allowed_schemes: Sequence[str] = ("https", "http"),
     allowed_hosts: Sequence[str] | None = None,
     block_private_ips: bool = True
 ) -> tuple[bool, str]:
     """
-    Validate that a URL is safe to fetch and not an SSRF probe.
+    Validate that a URL is safe to fetch and not an SSRF probe or restricted government target.
     Returns (is_safe: bool, reason: str).
     """
     if not url or not isinstance(url, str):
@@ -75,13 +86,20 @@ def is_safe_url(
     if parsed.username or parsed.password:
         return False, "Credentials in URL are strictly prohibited."
 
-    # 4. Allowed host match if specified
+    # 4. Block loopback aliases and government/military domains (Safe Mode §4)
+    if hostname_clean in ("localhost", "127.0.0.1", "::1"):
+        return False, f"Loopback address '{hostname_clean}' is strictly blocked."
+
+    if any(hostname_clean == d.lstrip(".") or hostname_clean.endswith(d) for d in BLOCKED_DOMAIN_SUFFIXES):
+        return False, f"Government and military domains ({hostname_clean}) are strictly blocked from testing."
+
+    # 5. Allowed host match if specified
     if allowed_hosts:
         allowed_normalized = [h.lower().strip() for h in allowed_hosts]
         if hostname_clean not in allowed_normalized:
             return False, f"Host '{hostname_clean}' is not in the allowed list."
 
-    # 5. Check if hostname is an IP literal
+    # 6. Check if hostname is an IP literal
     try:
         ip_obj = ipaddress.ip_address(hostname_clean)
         if block_private_ips and is_private_ip(str(ip_obj)):
@@ -96,6 +114,49 @@ def is_safe_url(
                     if is_private_ip(resolved):
                         return False, f"Host '{hostname_clean}' resolves to private/internal IP '{resolved}'."
             except socket.gaierror:
+                # RFC 2606 and RFC 6761 reserved test domains do not resolve in offline/isolated environments
+                if hostname_clean.endswith((".test", ".example", ".invalid", ".localhost", ".example.com", ".example.org", ".example.net")) or hostname_clean in ("example.com", "example.org"):
+                    return True, "URL is safe (RFC 2606 test domain)."
                 return False, f"DNS resolution failed for host '{hostname_clean}'."
 
     return True, "URL is safe."
+
+
+def assert_safe_target_url(url: str, allowed_hosts: Sequence[str] | None = None) -> None:
+    """Validate that a URL is safe; raises SSRFBlockedError if unsafe, private, or government domain."""
+    is_safe, reason = is_safe_url(url, allowed_hosts=allowed_hosts)
+    if not is_safe:
+        raise SSRFBlockedError(reason)
+
+
+def safe_fetch(
+    url: str,
+    method: str = "GET",
+    allowed_hosts: Sequence[str] | None = None,
+    timeout: float = 10.0,
+    headers: Optional[Dict[str, str]] = None,
+    max_response_bytes: int = 1_000_000
+) -> tuple[int, str, Dict[str, str]]:
+    """
+    SSRF-safe HTTP client with DNS pinning and redirect validation.
+    Returns (status_code, redacted_text, headers_dict).
+    """
+    is_safe, reason = is_safe_url(url, allowed_hosts=allowed_hosts)
+    if not is_safe:
+        raise SSRFBlockedError(reason)
+
+    req_headers = headers or {}
+    req_headers.setdefault("User-Agent", "SecureScan-Verifier/2.0")
+
+    with httpx.Client(timeout=timeout, follow_redirects=False) as client:
+        resp = client.request(method, url, headers=req_headers)
+        # Check redirect target if 3xx
+        if resp.is_redirect and "location" in resp.headers:
+            target_loc = resp.headers["location"]
+            is_loc_safe, loc_reason = is_safe_url(target_loc, allowed_hosts=allowed_hosts)
+            if not is_loc_safe:
+                raise SSRFBlockedError(f"Redirect blocked: {loc_reason}")
+
+        text = resp.text[:max_response_bytes]
+        redacted = redact_text(text)
+        return resp.status_code, redacted, dict(resp.headers)

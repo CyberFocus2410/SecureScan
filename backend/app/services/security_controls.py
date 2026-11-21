@@ -130,11 +130,11 @@ def evaluate_security_controls(
                 evidence_summary = "Gitleaks completed clean scan over repository worktree."
 
         elif ctrl_id in ("SEC-002", "SEC-003"):  # Secrets / DB strings in client assets
-            client_sec_findings = [f for f in findings if "client" in f.rule_id or "sec-002" in f.rule_id or "sec-003" in f.rule_id]
+            client_sec_findings = [f for f in findings if "client" in f.rule_id or "sec-002" in f.rule_id or "sec-003" in f.rule_id or "env-file" in f.rule_id or "secret-in-layer" in f.rule_id]
             if client_sec_findings:
                 state = ControlState.FAIL_EVIDENCED
                 linked_finding_ids = [f.id for f in client_sec_findings]
-                rationale = f"Discovered {len(client_sec_findings)} exposed database/credential connection string(s) in client asset files."
+                rationale = f"Discovered {len(client_sec_findings)} exposed database/credential connection string(s) or committed secret(s) in configuration."
             elif is_supported:
                 state = ControlState.PASS_EVIDENCED
                 rationale = "No database credentials or secret variables detected in client/public assets."
@@ -174,7 +174,7 @@ def evaluate_security_controls(
                 rationale = "Rate limiting checks unsupported on this framework; cannot verify in-code limits."
 
         elif ctrl_id == "SEC-007":  # Route Auth
-            auth_findings = [f for f in findings if "sec-007" in f.rule_id or "missing-auth" in f.rule_id]
+            auth_findings = [f for f in findings if "sec-007" in f.rule_id or "missing-auth" in f.rule_id or "broken-authentication" in f.rule_id]
             if auth_findings:
                 state = ControlState.POTENTIAL_GAP
                 linked_finding_ids = [f.id for f in auth_findings]
@@ -261,11 +261,11 @@ def evaluate_security_controls(
                 rationale = "Token and session configuration not evaluated."
 
         elif ctrl_id == "SEC-017":  # Weak password hashing algorithms
-            hash_findings = [f for f in findings if "hash" in f.rule_id.lower() or "md5" in f.rule_id.lower() or "sha1" in f.rule_id.lower() or "sec-017" in f.rule_id]
+            hash_findings = [f for f in findings if "hash" in f.rule_id.lower() or "md5" in f.rule_id.lower() or "sha1" in f.rule_id.lower() or "sec-017" in f.rule_id or "unhashed-password" in f.rule_id.lower()]
             if hash_findings:
                 state = ControlState.FAIL_EVIDENCED
                 linked_finding_ids = [f.id for f in hash_findings]
-                rationale = f"Detected {len(hash_findings)} usage(s) of deprecated or weak password hashing algorithms."
+                rationale = f"Detected {len(hash_findings)} usage(s) of deprecated weak hashing or unhashed password storage."
             elif scanner_status.get("semgrep") == "COMPLETED" or is_supported:
                 state = ControlState.PASS_EVIDENCED
                 rationale = "Semgrep SAST verified password hashing routines; no deprecated MD5/SHA-1 algorithms found."
@@ -310,11 +310,11 @@ def evaluate_security_controls(
                 rationale = "CORS configuration not located or framework unsupported."
 
         elif ctrl_id == "SEC-021":  # Debug Mode
-            debug_findings = [f for f in findings if "debug-mode" in f.rule_id or "debug" in f.rule_id]
+            debug_findings = [f for f in findings if "debug-mode" in f.rule_id or "debug" in f.rule_id or "open-debug" in f.rule_id]
             if debug_findings:
                 state = ControlState.FAIL_EVIDENCED
                 linked_finding_ids = [f.id for f in debug_findings]
-                rationale = "Application configuration explicitly enables DEBUG mode."
+                rationale = "Application configuration explicitly enables DEBUG mode or exposes debug routes/headers."
             elif is_supported:
                 state = ControlState.PASS_EVIDENCED
                 rationale = "Debug mode is disabled in application settings."

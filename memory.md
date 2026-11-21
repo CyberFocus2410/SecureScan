@@ -2,22 +2,42 @@
 
 Living context file for agents and collaborators. Read this first in every session; update it at the end of every task.
 
-**Last updated:** 2026-11-14 · **As-of date for legal status:** 2026-11-14
+**Last updated:** 2026-11-20 · **As-of date for legal status:** 2026-11-20 (Dynamic UTC date)
 
 ## 1. What this project is (one paragraph)
 
-SecureScan AI takes a public GitHub URL, safely imports a pinned commit, runs static security scanners and custom rules, maps findings to OWASP, assesses DPDP (India) readiness, and exports a PDF/JSON report with remediation and statutory penalty *ceilings*. It never claims exhaustive detection, legal compliance, or a predicted fine.
+SecureScan 2.0 is a full-stack automated application security-testing, risk-intelligence, and India DPDP-readiness platform. Given a public GitHub repository and/or an owner-verified live website, it checks frontend, backend, APIs, authn/authz, database layer, dependencies/SCA, secrets, infrastructure/config, AI features, and India DPDP readiness. It produces plain-language reports and copy-paste "Fix Packs" for developers and AI coding agents with zero raw secret exposure and statutory penalty ceilings.
 
 ## 2. Current status
 
 | Item | State |
 |---|---|
-| Source spec | `SecureScan_AI_PRD_FRD_v1.md` (v1.0) |
-| Derived docs | PRD, FRD, Architecture, Design, rules, decision, memory, SUMMARY (v1.1) |
-| Planning deliverables | `docs/adr-001-stack-and-versions.md`, `docs/task_breakdown.md`, `docs/api_contracts.md`, `docs/threat_model.md` (**Completed**) |
-| Source code | M0..M6 complete: full-stack security & DPDP audit engine, isolated sandbox runner, 72 automated tests (AT-01..AT-20), multi-engine PDF/JSON export, demo script, and docs |
-| Legal review | **Required before production release.** Primary gazette references documented in `docs/legal_sources.md` |
-| Milestones | M0..M6 **Completed & Verified** (100% of milestones completed) |
+| Master Spec 2.0 | `prompt2_0.md` (v2.0) |
+| Architecture Decision | `docs/adr-002-securescan-2.md`, ADR-003..ADR-014 (**Accepted**) |
+| Roadmap & Breakdown | `docs/task_breakdown_2_0.md` (**Completed for Steps 2–16**) |
+| Test Suite Baseline | **161 / 161 passing** (85 baseline + 9 Step 2 + 8 Step 3 + 4 Step 4 + 6 Step 5 + 6 Step 6 + 10 Step 7 + 5 Step 8 + 3 Step 9 + 7 Step 10 + 3 Step 11 + 5 Step 12 + 3 Step 13 + 3 Step 14 + 4 Step 15) |
+| Active Phase | **SecureScan 2.0 (Steps 1 through 16) — ALL 16 STEPS FULLY COMPLETED & VERIFIED** |
+
+### 2.0 Step Tracker
+
+| Step | Scope | Status |
+|---|---|---|
+| **Step 1** | Read, audit, amend rules, produce ADR-002 & task breakdown 2.0 | **Completed & Approved** |
+| **Step 2** | Sandbox backends (docker/bwrap/subprocess-dev), tool-doctor CLI, worker fixes, tool_runs table, dynamic AS_OF_DATE | **Completed** |
+| **Step 3** | Unified Finding Engine, targets & ownership/consent verification | **Completed** |
+| **Step 4** | Multi-language SAST, TruffleHog secrets, SCA & SBOM export | **Completed** |
+| **Step 5** | IaC, Docker, CI/CD & cloud configuration | **Completed** |
+| **Step 6** | Database security module (static + runtime exposure) | **Completed** |
+| **Step 7** | DAST engine, web testing & Lab benchmark (Juice Shop/DVWA) | **Completed** |
+| **Step 8** | API security engine & OWASP API Top 10 | **Completed** |
+| **Step 9** | Authentication & authorization testing (multi-account matrix) | **Completed** |
+| **Step 10** | DPDP privacy & compliance engine (re-verified Gazettes) | **Completed** |
+| **Step 11** | AI / LLM application security (OWASP LLM Top 10) | **Completed** |
+| **Step 12** | Risk intelligence, AI Security Analyst & Fix Pack generator | **Completed** |
+| **Step 13** | Professional multi-format reports (HTML, PDF, MD, JSON, SARIF) | **Completed** |
+| **Step 14** | Frontend upgrade & navigation (zero regressions) | **Completed & Verified** |
+| **Step 15** | Continuous security, scheduled re-scans & CI gate CLI | **Completed & Verified** |
+| **Step 16** | Hardening, evidence & production release | **Completed & Verified** |
 
 ### Milestone tracker
 

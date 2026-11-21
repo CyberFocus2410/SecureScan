@@ -18,6 +18,18 @@ from app.schemas.remediation import RemediationAction, RemediationActionCreate
 from app.schemas.error import ErrorResponse, ErrorDetail
 from app.schemas.report import ReportCreateRequest, ReportResponse
 from app.schemas.ai import AIExplainRequest, AIExplanation
+from app.schemas.target import (
+    TargetCreate,
+    TargetResponse,
+    VerificationChallengeRequest,
+    VerificationChallengeResponse,
+    VerifyChallengeRequest,
+    VerifyChallengeResponse,
+    ScopeConfigRequest,
+    ScopeResponse,
+    ConsentRequest,
+    ConsentResponse,
+)
 
 __all__ = [
     "Severity",

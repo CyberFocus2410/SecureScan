@@ -103,15 +103,22 @@ If you prefer serverless/managed platforms without managing Docker VMs:
 2. Go to [Render.com](https://render.com) or [Railway.app](https://railway.app).
 3. Create a **New Web Service** pointing to your repository.
 4. Set **Root Directory** to `backend`.
-5. Set **Build Command:** `pip install -r requirements.txt`.
+5. Set **Build Command:** `./build.sh` (or `pip install --prefer-binary -r requirements.txt`).
 6. Set **Start Command:** `uvicorn app.main:app --host 0.0.0.0 --port 8000`.
-7. Add a managed **PostgreSQL** database and a managed **Redis** instance in Render/Railway.
-8. Add Environment Variables:
-   - `DATABASE_URL`: Connection string from your managed Postgres instance.
-   - `REDIS_URL`: Connection string from your managed Redis instance.
-   - `CORS_ORIGINS`: `["https://your-frontend.vercel.app"]`
+7. Add a managed **PostgreSQL** database and a managed **Redis** instance in Render/Railway (or use SQLite/in-memory for zero-dependency test deploys).
+8. Add Environment Variables in the Render Dashboard (**CRITICAL**):
+   - **`PYTHON_VERSION`**: `3.11.9` *(Mandatory: Prevents Render from defaulting to Python 3.14 which lacks pre-built wheels for pydantic-core)*
+   - **`PIP_PREFER_BINARY`**: `1`
+   - `DATABASE_URL`: `sqlite:///./securescan_dev.db` (or your internal PostgreSQL URL)
+   - `REDIS_URL`: Connection string from your managed Redis instance
+   - `CORS_ORIGINS`: `["https://securescanbox.xyz","https://www.securescanbox.xyz","https://secure-scan-two.vercel.app","http://localhost:3000"]`
+   - `CORS_ORIGIN_REGEX`: `^https?:\/\/(localhost|127\.0\.0\.1|.*\.vercel\.app|(.*\.)?securescanbox\.xyz)(:\d+)?$`
    - `ENVIRONMENT`: `production`
-   - `AS_OF_DATE`: `2026-11-14`
+   - `DEBUG`: `false`
+   - `WEBHOOK_SECRET`: `your_random_hmac_secret_key`
+
+> [!TIP]
+> You can also paste the contents of `.env.render` directly into Render Dashboard via **Environment -> Add from .env** for instant one-click configuration.
 
 #### Step 2: Deploy Frontend (Vercel)
 1. Go to [Vercel.com](https://vercel.com) and click **"Add New Project"**.
@@ -122,10 +129,10 @@ If you prefer serverless/managed platforms without managing Docker VMs:
    - **Build Command:** `npm run build`
    - **Output Directory:** `dist`
 4. Add Environment Variable:
-   - `VITE_API_BASE_URL`: `https://your-backend.onrender.com`
+   - `VITE_API_URL`: `https://securescan-f6is.onrender.com` (or your actual Render backend URL)
 5. Click **Deploy**.
-6. When Vercel finishes building, you will receive an HTTPS URL (e.g., `https://securescan.vercel.app`).
-7. Open this URL on your mobile phone to see the PWA install prompt!
+6. When Vercel finishes building, you will receive an HTTPS URL (e.g., `https://secure-scan-two.vercel.app` or your custom domain `https://securescanbox.xyz`).
+7. Open this URL in any mobile browser or desktop to use the application!
 
 ---
 

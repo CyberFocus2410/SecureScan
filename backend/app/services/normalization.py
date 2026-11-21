@@ -14,6 +14,7 @@ from app.models.models import (
 from app.schemas.finding import FindingCreate
 from app.schemas.enums import EvidenceTier
 from app.scanners.base import ScannerExecutionResult
+from app.services.finding_engine import compute_unified_priority, enrich_standards_mapping
 
 
 def normalize_and_persist_scan_results(
@@ -71,20 +72,67 @@ def normalize_and_persist_scan_results(
             # Parser-level redaction assertion
             clean_snippet = redact_text(raw.raw_snippet)
 
+            scanner_name = res.scanner.value if hasattr(res.scanner, "value") else str(res.scanner)
+            scanner_signal = f"Confirmed by {scanner_name}"
+
             dedupe_key = (clean_path, raw.start_line, raw.end_line, raw.category)
 
             if dedupe_key in dedupe_map:
-                # Merge secondary scanner metadata into existing finding
+                # Merge secondary scanner metadata into existing finding with signals
                 existing = dedupe_map[dedupe_key]
                 merged_cwes = sorted(list(set(existing.cwe_ids or []).union(set(raw.cwe_ids))))
                 merged_owasps = sorted(list(set(existing.owasp_refs or []).union(set(raw.owasp_refs))))
                 existing.cwe_ids = merged_cwes
                 existing.owasp_refs = merged_owasps
+
+                signals = list(existing.signals or [])
+                if scanner_signal not in signals:
+                    signals.append(scanner_signal)
+                existing.signals = signals
+                existing.confidence = "CONFIRMED"
+                existing.verified_state = "CONFIRMED"
+                existing.priority = compute_unified_priority(
+                    severity=existing.severity,
+                    confidence="CONFIRMED"
+                )
             else:
                 finding_id = str(uuid.uuid4())
-                scanner_name = res.scanner.value if hasattr(res.scanner, "value") else str(res.scanner)
                 sev_val = raw.severity.value if hasattr(raw.severity, "value") else str(raw.severity)
                 conf_val = raw.confidence.value if hasattr(raw.confidence, "value") else str(raw.confidence)
+                prio = compute_unified_priority(severity=sev_val, confidence=conf_val)
+                stds = enrich_standards_mapping(raw.cwe_ids, raw.owasp_refs)
+
+                # Determine engine and tool provenance (Section 5 & 6)
+                engine_val = "sast"
+                if raw.category == "secrets":
+                    engine_val = "secrets"
+                elif raw.category == "dependency":
+                    engine_val = "sca"
+                elif raw.rule_id.startswith("iac-docker"):
+                    engine_val = "container"
+                elif raw.rule_id.startswith("ci-"):
+                    engine_val = "ci"
+                elif raw.rule_id.startswith("iac-") or raw.rule_id.startswith("cloud-"):
+                    engine_val = "iac"
+                elif raw.rule_id.startswith("db-"):
+                    engine_val = "db"
+                elif raw.category in ("injection", "auth", "api", "misconfig"):
+                    engine_val = "sast"
+
+                tool_val = scanner_name
+                if raw.rule_id.startswith("db-"):
+                    tool_val = "db_static" if "static" in raw.rule_id else "db_runtime"
+                elif raw.rule_id.startswith("iac-docker"):
+                    tool_val = "hadolint"
+                elif raw.rule_id.startswith("ci-"):
+                    tool_val = "zizmor"
+                elif raw.rule_id.startswith("iac-tf") or raw.rule_id.startswith("iac-k8s") or raw.rule_id.startswith("iac-compose"):
+                    tool_val = "checkov"
+                elif raw.rule_id.startswith("cloud-"):
+                    tool_val = "cloud_config"
+                elif scanner_name == "gitleaks" and "trufflehog" in raw.rule_id:
+                    tool_val = "trufflehog"
+
                 finding_model = FindingModel(
                     id=finding_id,
                     audit_id=audit_id,
@@ -104,22 +152,39 @@ def normalize_and_persist_scan_results(
                     owasp_refs=raw.owasp_refs,
                     redacted_snippet=clean_snippet,
                     technical_fix=raw.technical_fix,
-                    validation_steps=raw.validation_steps
+                    validation_steps=raw.validation_steps,
+                    engine=engine_val,
+                    tool=tool_val,
+                    tool_version=res.version,
+                    verified_state="CONFIRMED" if conf_val == "CONFIRMED" else "LIKELY",
+                    priority=prio,
+                    standards=stds,
+                    plain_title=raw.title,
+                    plain_summary=raw.description,
+                    why_it_matters=f"Vulnerability in {clean_path} affecting application security posture.",
+                    how_to_fix=raw.technical_fix or "Remediate source code according to safe patterns.",
+                    how_to_verify_fix=raw.validation_steps or "Re-scan repository worktree.",
+                    fix_effort="30 minutes",
+                    signals=[scanner_signal],
+                    status="open"
                 )
                 db.add(finding_model)
 
                 # Persist corresponding Evidence record
+                is_config_file = any(clean_path.endswith(ext) for ext in [".yaml", ".yml", ".json", ".tf", ".env", ".rules", ".toml"]) or "dockerfile" in clean_path.lower()
+                tier_val = EvidenceTier.E2_CONFIG_MANIFEST.value if (raw.category == "dependency" or is_config_file) else EvidenceTier.E1_SOURCE_CODE.value
+
                 evidence_model = EvidenceModel(
                     id=str(uuid.uuid4()),
                     audit_id=audit_id,
                     finding_id=finding_id,
-                    tier=EvidenceTier.E1_SOURCE_CODE.value if raw.category != "dependency" else EvidenceTier.E2_CONFIG_MANIFEST.value,
+                    tier=tier_val,
                     path=clean_path,
                     start_line=raw.start_line,
                     end_line=raw.end_line,
                     redacted_excerpt=clean_snippet,
                     raw_data=raw.raw_metadata or {},
-                    provenance=f"{res.scanner.value}:{res.version}:{raw.rule_id}"
+                    provenance=f"{tool_val}:{res.version}:{raw.rule_id}"
                 )
                 db.add(evidence_model)
 

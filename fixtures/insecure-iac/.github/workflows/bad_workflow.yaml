@@ -1,0 +1,17 @@
+name: Insecure CI Workflow
+on:
+  pull_request_target:
+    types: [opened, synchronize]
+
+permissions: write-all
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@master
+
+      - name: Script Injection Risk
+        run: |
+          echo "Processing PR: ${{ github.event.issue.title }}"
+          echo "Secret token is: ${{ secrets.GITHUB_TOKEN }}"

@@ -4,41 +4,53 @@ import {
   FileCode,
   AlertTriangle,
   CheckCircle2,
-  XCircle,
-  HelpCircle,
-  MinusCircle,
   AlertOctagon,
   ChevronRight,
-  X,
-  Code
+  Package,
+  Sparkles,
+  Flame
 } from 'lucide-react';
-import { getFindings, getSecurityCoverage, getAudit } from '../../services/api';
-import { Finding, ControlResult, ControlState, SecurityCoverageSummary, Audit } from '../../types/contracts';
+import {
+  getFindings,
+  getSecurityCoverage,
+  getRiskIntelligence,
+  getSbomCycloneDx,
+  getSbomSpdx
+} from '../../services/api';
+import {
+  Finding,
+  ControlResult,
+  RiskIntelligenceData
+} from '../../types/contracts';
+
+type ActiveTab = 'summary' | 'findings' | 'good' | 'gaps' | 'chains' | 'api' | 'sbom';
 
 export const SecurityPage: React.FC = () => {
   const { auditId } = useParams<{ auditId: string }>();
-  const [audit, setAudit] = useState<Audit | null>(null);
+  const [activeTab, setActiveTab] = useState<ActiveTab>('summary');
   const [findings, setFindings] = useState<Finding[]>([]);
   const [controls, setControls] = useState<ControlResult[]>([]);
-  const [summary, setSummary] = useState<SecurityCoverageSummary | null>(null);
-  const [selectedFinding, setSelectedFinding] = useState<Finding | null>(null);
-  const [selectedStateFilter, setSelectedStateFilter] = useState<string>('ALL');
+  const [riskData, setRiskData] = useState<RiskIntelligenceData | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Filters
+  const [selectedPriority, setSelectedPriority] = useState<string>('ALL');
+  const [selectedSeverity, setSelectedSeverity] = useState<string>('ALL');
+  const [selectedEngine, setSelectedEngine] = useState<string>('ALL');
 
   useEffect(() => {
     if (!auditId) return;
 
     Promise.all([
-      getAudit(auditId).catch(() => null),
       getFindings(auditId).catch(() => ({ items: [], total: 0 })),
-      getSecurityCoverage(auditId).catch(() => null)
-    ]).then(([aData, fData, covData]) => {
-      if (aData) setAudit(aData);
+      getSecurityCoverage(auditId).catch(() => null),
+      getRiskIntelligence(auditId).catch(() => null)
+    ]).then(([fData, covData, rData]) => {
       if (fData) setFindings(fData.items);
       if (covData) {
         setControls(covData.controls);
-        setSummary(covData.summary);
       }
+      if (rData) setRiskData(rData);
       setLoading(false);
     });
   }, [auditId]);
@@ -47,73 +59,45 @@ export const SecurityPage: React.FC = () => {
     return (
       <div className="max-w-6xl mx-auto px-4 py-16 text-center">
         <div className="inline-block animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mb-4"></div>
-        <p className="text-slate-500 font-medium text-sm">Loading security audit findings and coverage...</p>
+        <p className="text-slate-500 font-medium text-sm">Loading security results & risk intelligence...</p>
       </div>
     );
   }
 
-  const filteredControls = selectedStateFilter === 'ALL'
-    ? controls
-    : controls.filter(c => c.state === selectedStateFilter);
+  // Filtered findings
+  const filteredFindings = findings.filter((f) => {
+    if (selectedPriority !== 'ALL' && f.priority !== selectedPriority) return false;
+    if (selectedSeverity !== 'ALL' && f.severity !== selectedSeverity) return false;
+    if (selectedEngine !== 'ALL' && f.engine !== selectedEngine && f.scanner_name !== selectedEngine) return false;
+    return true;
+  });
 
-  const confirmedFindings = findings.filter(f => f.confidence === 'CONFIRMED' || f.severity === 'CRITICAL' || f.severity === 'HIGH');
-  const potentialGapControls = controls.filter(c => c.state === 'POTENTIAL_GAP');
+  const goodControls = controls.filter((c) => c.state === 'PASS_EVIDENCED');
+  const gapControls = controls.filter((c) => c.state === 'POTENTIAL_GAP' || c.state === 'NOT_VERIFIED');
+  const attackChains = riskData?.attack_chains || [];
 
-  const renderStateBadge = (state: ControlState) => {
-    switch (state) {
-      case 'PASS_EVIDENCED':
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 whitespace-nowrap">
-            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-            PASS_EVIDENCED
-          </span>
-        );
-      case 'FAIL_EVIDENCED':
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300 border border-red-300 dark:border-red-800 whitespace-nowrap">
-            <XCircle className="w-3 h-3 text-red-600" />
-            FAIL_EVIDENCED
-          </span>
-        );
-      case 'POTENTIAL_GAP':
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-800 whitespace-nowrap">
-            <AlertTriangle className="w-3 h-3 text-amber-600" />
-            POTENTIAL_GAP
-          </span>
-        );
-      case 'NOT_VERIFIED':
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300 border border-slate-300 dark:border-slate-700 whitespace-nowrap">
-            <HelpCircle className="w-3 h-3 text-slate-500" />
-            NOT_VERIFIED
-          </span>
-        );
-      case 'NOT_APPLICABLE':
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-gray-100 text-gray-700 dark:bg-gray-800/60 dark:text-gray-400 border border-gray-300 dark:border-gray-700 whitespace-nowrap">
-            <MinusCircle className="w-3 h-3 text-gray-500" />
-            NOT_APPLICABLE
-          </span>
-        );
-      case 'ERROR':
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-300 dark:border-rose-800 whitespace-nowrap">
-            <AlertOctagon className="w-3 h-3 text-rose-600" />
-            ERROR
-          </span>
-        );
-      default:
-        return null;
+  const handleExportSbom = async (format: 'cyclonedx' | 'spdx') => {
+    if (!auditId) return;
+    try {
+      const data = format === 'cyclonedx' ? await getSbomCycloneDx(auditId) : await getSbomSpdx(auditId);
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `sbom-${format}-${auditId.slice(0, 8)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert(`Failed to export SBOM: ${err.message || 'Unknown error'}`);
     }
   };
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 sm:py-8">
-      {/* Header & Navigation */}
+      {/* Top Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-200 dark:border-slate-800">
         <div>
-          <div className="flex items-center gap-2.5 sm:gap-3">
+          <div className="flex items-center gap-2.5">
             <img
               src="/logo.jpg"
               alt="SecureScan AI Logo"
@@ -123,322 +107,445 @@ export const SecurityPage: React.FC = () => {
               Security Audit Results
             </h1>
           </div>
-          <p className="text-[11px] sm:text-xs text-slate-500 font-mono mt-1 break-all">
-            Audit: {auditId} • Commit: {audit?.commit_sha?.slice(0, 8) || 'Head'}
-          </p>
+          <p className="text-xs font-mono text-slate-500 mt-1">Scan ID: {auditId}</p>
         </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
+
+        <div className="flex items-center gap-2">
           <Link
             to={`/audits/${auditId}/dpdp`}
-            className="flex-1 sm:flex-initial px-3.5 py-2 border border-slate-300 dark:border-slate-700 rounded-xl text-xs sm:text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition text-center"
+            className="px-3.5 py-1.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs font-semibold hover:bg-emerald-100 transition"
           >
-            DPDP Tab
+            DPDP Readiness →
           </Link>
           <Link
             to={`/audits/${auditId}/report`}
-            className="flex-1 sm:flex-initial px-4 py-2 bg-blue-600 text-white rounded-xl text-xs sm:text-sm font-semibold hover:bg-blue-700 active:bg-blue-800 transition text-center shadow-xs"
+            className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold transition"
           >
-            Export Report
+            Export Report & Fix Pack
           </Link>
         </div>
       </div>
 
-      {/* Partial Banner (Fail-safe indicator) */}
-      {audit?.status === 'PARTIAL' && (
-        <div className="p-3.5 sm:p-4 bg-amber-50 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-800 rounded-xl mb-6 flex items-start gap-2.5">
-          <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-          <div className="text-xs sm:text-sm">
-            <p className="font-semibold text-amber-900 dark:text-amber-200">Partial Audit Results</p>
-            <p className="text-amber-700 dark:text-amber-300 text-xs mt-0.5 leading-relaxed">
-              One or more scanner engines experienced partial execution. Surviving findings and verified controls are displayed below.
-            </p>
-          </div>
-        </div>
-      )}
+      {/* Navigation Tabs */}
+      <div className="flex overflow-x-auto no-scrollbar gap-2 mb-6 pb-1 border-b border-slate-200 dark:border-slate-800 text-xs font-semibold">
+        <button
+          onClick={() => setActiveTab('summary')}
+          className={`px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+            activeTab === 'summary'
+              ? 'bg-blue-600 text-white shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+          }`}
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          <span>Executive Summary</span>
+        </button>
 
-      {/* Coverage Ratio Strip (Honest denominator) */}
-      {summary && (
-        <div className="p-4 sm:p-6 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-slate-900 dark:to-slate-900 border border-blue-200 dark:border-slate-800 rounded-2xl mb-6 sm:mb-8 shadow-xs">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-            <div>
-              <p className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-blue-900 dark:text-blue-300">
-                Evidenced Security Coverage Ratio
-              </p>
-              <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white mt-0.5">
-                {summary.evidenced_controls} / {summary.denominator} Controls Evidenced ({Math.round(summary.coverage_ratio * 100)}%)
-              </h2>
-            </div>
-            <div className="text-[11px] sm:text-xs text-slate-600 dark:text-slate-400 font-mono text-left sm:text-right space-y-0.5">
-              <p>Pass: {summary.evidenced_pass} | Fail: {summary.evidenced_fail}</p>
-              <p>Potential Gaps: {summary.potential_gap} | Not Verified: {summary.not_verified}</p>
-            </div>
-          </div>
-          {/* Progress bar */}
-          <div className="w-full bg-slate-200 dark:bg-slate-800 h-2.5 sm:h-3 rounded-full overflow-hidden flex shadow-inner">
-            <div
-              className="bg-emerald-500 h-full transition-all duration-500"
-              style={{ width: `${(summary.evidenced_pass / summary.denominator) * 100}%` }}
-              title={`Pass Evidenced: ${summary.evidenced_pass}`}
-            />
-            <div
-              className="bg-red-500 h-full transition-all duration-500"
-              style={{ width: `${(summary.evidenced_fail / summary.denominator) * 100}%` }}
-              title={`Fail Evidenced: ${summary.evidenced_fail}`}
-            />
-            <div
-              className="bg-amber-400 h-full transition-all duration-500"
-              style={{ width: `${(summary.potential_gap / summary.denominator) * 100}%` }}
-              title={`Potential Gap: ${summary.potential_gap}`}
-            />
-          </div>
-        </div>
-      )}
+        <button
+          onClick={() => setActiveTab('findings')}
+          className={`px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+            activeTab === 'findings'
+              ? 'bg-blue-600 text-white shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+          }`}
+        >
+          <AlertOctagon className="w-3.5 h-3.5 text-red-500" />
+          <span>What Needs Fixing ({findings.length})</span>
+        </button>
 
-      {/* Severity & Confidence Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 mb-6 sm:mb-8">
-        <div className="p-3.5 sm:p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xs">
-          <p className="text-[11px] sm:text-xs text-slate-500 font-medium">Total Findings</p>
-          <p className="text-xl sm:text-2xl font-bold mt-1 text-slate-900 dark:text-white">{findings.length}</p>
-          <span className="text-[10px] sm:text-[11px] text-slate-400">Deduplicated</span>
-        </div>
-        <div className="p-3.5 sm:p-4 bg-red-50/50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40 rounded-xl shadow-xs">
-          <p className="text-[11px] sm:text-xs text-red-600 dark:text-red-400 font-medium">Confirmed Vulnerabilities</p>
-          <p className="text-xl sm:text-2xl font-bold text-red-600 dark:text-red-400 mt-1">{confirmedFindings.length}</p>
-          <span className="text-[10px] sm:text-[11px] text-red-500">AST & Pinned</span>
-        </div>
-        <div className="p-3.5 sm:p-4 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-xl shadow-xs">
-          <p className="text-[11px] sm:text-xs text-amber-600 dark:text-amber-400 font-medium">Potential Gaps</p>
-          <p className="text-xl sm:text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">{potentialGapControls.length}</p>
-          <span className="text-[10px] sm:text-[11px] text-amber-500">Heuristic Gaps</span>
-        </div>
-        <div className="p-3.5 sm:p-4 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xs">
-          <p className="text-[11px] sm:text-xs text-slate-500 font-medium">Unverified Controls</p>
-          <p className="text-xl sm:text-2xl font-bold text-slate-600 dark:text-slate-300 mt-1">
-            {summary?.not_verified || 0}
-          </p>
-          <span className="text-[10px] sm:text-[11px] text-slate-400">Manual review</span>
-        </div>
+        <button
+          onClick={() => setActiveTab('good')}
+          className={`px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+            activeTab === 'good'
+              ? 'bg-blue-600 text-white shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+          }`}
+        >
+          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+          <span>What Looks Good ({goodControls.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('gaps')}
+          className={`px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+            activeTab === 'gaps'
+              ? 'bg-blue-600 text-white shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+          }`}
+        >
+          <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+          <span>Needs Human Look ({gapControls.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('chains')}
+          className={`px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+            activeTab === 'chains'
+              ? 'bg-blue-600 text-white shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+          }`}
+        >
+          <Flame className="w-3.5 h-3.5 text-orange-500" />
+          <span>Attack Chains ({attackChains.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('sbom')}
+          className={`px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+            activeTab === 'sbom'
+              ? 'bg-blue-600 text-white shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+          }`}
+        >
+          <Package className="w-3.5 h-3.5 text-indigo-500" />
+          <span>SBOM View</span>
+        </button>
       </div>
 
-      {/* Findings Section */}
-      <div className="mb-8 sm:mb-12">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-4">
-          <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
-            Identified Vulnerabilities & Gaps
-          </h2>
-          <span className="text-[11px] font-mono text-slate-500">
-            Secrets Redacted at Parser Boundary
-          </span>
-        </div>
+      {/* TAB 1: EXECUTIVE SUMMARY */}
+      {activeTab === 'summary' && (
+        <div className="space-y-6">
+          {/* Priority Counts Cards (P0-P3) */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="p-4 bg-red-50/60 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40 rounded-xl">
+              <span className="text-xs font-bold text-red-700 dark:text-red-300">P0 · CRITICAL</span>
+              <p className="text-2xl font-extrabold text-red-600 dark:text-red-400 mt-1">
+                {riskData?.priority_counts.P0 || findings.filter(f => f.priority === 'P0' || f.severity === 'CRITICAL').length}
+              </p>
+              <p className="text-[11px] text-red-500">Immediate Exploitable Risk</p>
+            </div>
 
-        {findings.length === 0 ? (
-          <div className="p-6 sm:p-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-center shadow-xs">
-            <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
-            <p className="text-sm sm:text-base font-bold text-slate-800 dark:text-slate-200">
-              No vulnerabilities detected from automated scans.
-            </p>
-            <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
-              Static SAST, AST, secret, and dependency analyzers observed zero flaw patterns in scanned files.
-            </p>
+            <div className="p-4 bg-orange-50/60 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-900/40 rounded-xl">
+              <span className="text-xs font-bold text-orange-700 dark:text-orange-300">P1 · HIGH</span>
+              <p className="text-2xl font-extrabold text-orange-600 dark:text-orange-400 mt-1">
+                {riskData?.priority_counts.P1 || findings.filter(f => f.priority === 'P1' || f.severity === 'HIGH').length}
+              </p>
+              <p className="text-[11px] text-orange-500">High Impact Defense Gap</p>
+            </div>
+
+            <div className="p-4 bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-xl">
+              <span className="text-xs font-bold text-amber-700 dark:text-amber-300">P2 · MEDIUM</span>
+              <p className="text-2xl font-extrabold text-amber-600 dark:text-amber-400 mt-1">
+                {riskData?.priority_counts.P2 || findings.filter(f => f.priority === 'P2' || f.severity === 'MEDIUM').length}
+              </p>
+              <p className="text-[11px] text-amber-500">Moderate Vulnerability</p>
+            </div>
+
+            <div className="p-4 bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/40 rounded-xl">
+              <span className="text-xs font-bold text-blue-700 dark:text-blue-300">P3 · LOW / INFO</span>
+              <p className="text-2xl font-extrabold text-blue-600 dark:text-blue-400 mt-1">
+                {riskData?.priority_counts.P3 || findings.filter(f => f.priority === 'P3' || f.severity === 'LOW' || f.severity === 'INFO').length}
+              </p>
+              <p className="text-[11px] text-blue-500">Hardening & Hygiene</p>
+            </div>
           </div>
-        ) : (
-          <div className="space-y-3.5 sm:space-y-4">
-            {findings.map((f) => (
-              <div
-                key={f.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => setSelectedFinding(f)}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedFinding(f); }}
-                className="p-4 sm:p-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-blue-400 dark:hover:border-blue-600 rounded-xl cursor-pointer transition shadow-xs"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2.5 mb-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${
-                      f.severity === 'CRITICAL' ? 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300' :
-                      f.severity === 'HIGH' ? 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300' :
-                      'bg-yellow-100 text-yellow-800 dark:bg-yellow-950 dark:text-yellow-300'
-                    }`}>
-                      {f.severity}
-                    </span>
-                    <span className="px-2 py-0.5 bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 rounded text-[11px] font-mono">
-                      {f.confidence}
-                    </span>
-                    <h3 className="font-semibold text-sm sm:text-base text-slate-900 dark:text-white break-words">
-                      {f.title}
-                    </h3>
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    {f.owasp_refs.map(ref => (
-                      <span key={ref} className="px-2 py-0.5 bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 rounded text-[10px] font-mono font-medium">
-                        {ref}
-                      </span>
-                    ))}
-                  </div>
+
+          {/* 5 Secondary Scores Card */}
+          {riskData?.scores && (
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                <div>
+                  <h2 className="text-base font-bold text-slate-900 dark:text-white">
+                    Multi-Dimensional Posture Scores (0–100)
+                  </h2>
+                  <p className="text-xs text-slate-500">Evaluated with Section 8(5) Hard Cap Enforcement</p>
                 </div>
+                {riskData.scores.hard_cap_applied && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-100 dark:bg-red-950/60 text-red-800 dark:text-red-300 border border-red-300 dark:border-red-800 rounded-lg text-xs font-bold">
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    Hard Cap Applied (Max 60 due to confirmed P0)
+                  </span>
+                )}
+              </div>
 
-                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mb-3 line-clamp-2 leading-relaxed">
-                  {f.description}
-                </p>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl text-center">
+                  <p className="text-[11px] text-slate-500 font-medium">Security</p>
+                  <p className="text-xl font-extrabold text-slate-900 dark:text-white mt-0.5">
+                    {riskData.scores.security_score}/100
+                  </p>
+                </div>
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl text-center">
+                  <p className="text-[11px] text-slate-500 font-medium">Privacy</p>
+                  <p className="text-xl font-extrabold text-slate-900 dark:text-white mt-0.5">
+                    {riskData.scores.privacy_score}/100
+                  </p>
+                </div>
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl text-center">
+                  <p className="text-[11px] text-slate-500 font-medium">Infrastructure</p>
+                  <p className="text-xl font-extrabold text-slate-900 dark:text-white mt-0.5">
+                    {riskData.scores.infrastructure_score}/100
+                  </p>
+                </div>
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl text-center">
+                  <p className="text-[11px] text-slate-500 font-medium">Supply Chain</p>
+                  <p className="text-xl font-extrabold text-slate-900 dark:text-white mt-0.5">
+                    {riskData.scores.supply_chain_score}/100
+                  </p>
+                </div>
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl text-center">
+                  <p className="text-[11px] text-slate-500 font-medium">DPDP Readiness</p>
+                  <p className="text-xl font-extrabold text-slate-900 dark:text-white mt-0.5">
+                    {riskData.scores.dpdp_readiness_score}/100
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-500 font-mono">
-                  <div className="flex items-center gap-1.5 truncate">
-                    <FileCode className="w-3.5 h-3.5 flex-shrink-0" />
+          {/* Top 5 Things to Fix First */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs">
+            <h2 className="text-base font-bold text-slate-900 dark:text-white mb-3">
+              Top Priority Fixes
+            </h2>
+            <div className="space-y-2.5">
+              {findings.slice(0, 5).map((f) => (
+                <Link
+                  key={f.id}
+                  to={`/findings/${f.id}`}
+                  className="p-3 bg-slate-50 dark:bg-slate-800/40 hover:bg-blue-50/50 dark:hover:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between transition"
+                >
+                  <div className="flex items-center gap-2.5 truncate mr-2">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300 flex-shrink-0">
+                      {f.priority || 'P0'}
+                    </span>
+                    <span className="text-xs font-semibold text-slate-900 dark:text-white truncate">
+                      {f.plain_title || f.title}
+                    </span>
+                    <span className="text-[11px] text-slate-400 font-mono truncate hidden sm:inline">
+                      ({f.file_path}:{f.start_line})
+                    </span>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 2: FINDINGS ("What Needs Fixing") */}
+      {activeTab === 'findings' && (
+        <div>
+          {/* Filters Bar */}
+          <div className="flex flex-wrap items-center gap-2 mb-4 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
+            <span className="font-semibold text-slate-500 mr-1">Filter by:</span>
+
+            {/* Priority Filter */}
+            <select
+              value={selectedPriority}
+              onChange={(e) => setSelectedPriority(e.target.value)}
+              className="px-2.5 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none"
+            >
+              <option value="ALL">All Priorities</option>
+              <option value="P0">P0 (Critical)</option>
+              <option value="P1">P1 (High)</option>
+              <option value="P2">P2 (Medium)</option>
+              <option value="P3">P3 (Low)</option>
+            </select>
+
+            {/* Severity Filter */}
+            <select
+              value={selectedSeverity}
+              onChange={(e) => setSelectedSeverity(e.target.value)}
+              className="px-2.5 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none"
+            >
+              <option value="ALL">All Severities</option>
+              <option value="CRITICAL">Critical</option>
+              <option value="HIGH">High</option>
+              <option value="MEDIUM">Medium</option>
+              <option value="LOW">Low</option>
+            </select>
+
+            {/* Engine Filter */}
+            <select
+              value={selectedEngine}
+              onChange={(e) => setSelectedEngine(e.target.value)}
+              className="px-2.5 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none"
+            >
+              <option value="ALL">All Engines</option>
+              <option value="sast">SAST / Code Analysis</option>
+              <option value="secrets">Secret Detector</option>
+              <option value="dast">DAST / Web Scanner</option>
+              <option value="api">API Security</option>
+              <option value="authz">Auth Matrix</option>
+              <option value="iac">IaC & Cloud Config</option>
+              <option value="database">Database Security</option>
+              <option value="ai">AI / LLM Security</option>
+            </select>
+          </div>
+
+          {/* Finding Cards */}
+          <div className="space-y-3">
+            {filteredFindings.length === 0 ? (
+              <div className="p-8 text-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl">
+                <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+                <p className="text-sm font-semibold">No findings matching the selected filters.</p>
+              </div>
+            ) : (
+              filteredFindings.map((f) => (
+                <Link
+                  key={f.id}
+                  to={`/findings/${f.id}`}
+                  className="block p-4 sm:p-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-blue-400 dark:hover:border-blue-600 rounded-xl transition shadow-xs group"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 mb-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+                        f.priority === 'P0' ? 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300' :
+                        f.priority === 'P1' ? 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300' :
+                        'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                      }`}>
+                        {f.priority || 'P2'} · {f.severity}
+                      </span>
+                      <span className="text-xs font-semibold text-slate-900 dark:text-white group-hover:text-blue-600 transition">
+                        {f.plain_title || f.title}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 text-xs text-blue-600 font-medium">
+                      <span>View details & fix</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-slate-600 dark:text-slate-400 mb-3 line-clamp-2 leading-relaxed">
+                    {f.plain_summary || f.description}
+                  </p>
+
+                  <div className="flex items-center gap-2 text-xs font-mono text-slate-500">
+                    <FileCode className="w-3.5 h-3.5" />
                     <span className="truncate">{f.file_path}:{f.start_line}</span>
-                    <span>•</span>
+                    <span>·</span>
                     <span className="capitalize">{f.scanner_name}</span>
                   </div>
-                  <span className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 font-medium text-xs flex-shrink-0">
-                    View proof & fix <ChevronRight className="w-3.5 h-3.5" />
+                </Link>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: WHAT LOOKS GOOD ✅ */}
+      {activeTab === 'good' && (
+        <div className="space-y-3">
+          <div className="p-4 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs text-emerald-900 dark:text-emerald-200">
+            <p className="font-semibold mb-0.5">Verified Defenses (PASS_EVIDENCED)</p>
+            <p>Controls that were checked by automated analyzers and confirmed passing based on tangible source or config evidence.</p>
+          </div>
+
+          <div className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
+            {goodControls.map((c) => (
+              <div key={c.id} className="p-4 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                    <span className="font-semibold text-xs text-slate-900 dark:text-white">{c.title}</span>
+                  </div>
+                  <span className="font-mono text-[11px] text-blue-600">{c.control_id}</span>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-400 pl-6 leading-relaxed">{c.rationale}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 4: NEEDS A HUMAN LOOK 🟡 */}
+      {activeTab === 'gaps' && (
+        <div className="space-y-3">
+          <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl text-xs text-amber-900 dark:text-amber-200">
+            <p className="font-semibold mb-0.5">Unverified Controls & Potential Gaps</p>
+            <p>Items requiring human architectural review or deeper operational verification that automated tooling cannot guarantee.</p>
+          </div>
+
+          <div className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
+            {gapControls.map((c) => (
+              <div key={c.id} className="p-4 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                    <span className="font-semibold text-xs text-slate-900 dark:text-white">{c.title}</span>
+                  </div>
+                  <span className="font-mono text-[11px] text-amber-600">{c.control_id}</span>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-400 pl-6 leading-relaxed">{c.rationale}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 5: ATTACK CHAINS */}
+      {activeTab === 'chains' && (
+        <div className="space-y-4">
+          <div className="p-4 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-xl text-xs text-orange-900 dark:text-orange-200">
+            <p className="font-semibold mb-0.5">Compound Attack Chains (Step 12)</p>
+            <p>Automated correlation connecting multiple individually medium/high vulnerabilities into P0 critical compromise paths.</p>
+          </div>
+
+          {attackChains.length === 0 ? (
+            <div className="p-8 text-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl">
+              <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+              <p className="text-sm font-semibold">No multi-stage attack chains identified.</p>
+            </div>
+          ) : (
+            attackChains.map((ch) => (
+              <div key={ch.chain_id} className="p-5 bg-white dark:bg-slate-900 border border-red-200 dark:border-red-900/50 rounded-2xl shadow-xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Flame className="w-5 h-5 text-red-600" />
+                    <h3 className="font-bold text-sm text-slate-900 dark:text-white">{ch.title}</h3>
+                  </div>
+                  <span className="px-2.5 py-0.5 bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300 rounded font-bold text-xs">
+                    {ch.severity}
                   </span>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
 
-      {/* 32 Security Controls Evaluation Table */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
-        <div className="p-4 sm:p-6 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
-              32-Control Evaluation Matrix
-            </h2>
-            <p className="text-xs text-slate-500 mt-0.5">Automated verification mapped to OWASP & ASVS</p>
-          </div>
-          {/* State Filter Buttons */}
-          <div className="flex overflow-x-auto no-scrollbar gap-1.5 py-1 -mx-4 px-4 sm:mx-0 sm:px-0">
-            {['ALL', 'PASS_EVIDENCED', 'FAIL_EVIDENCED', 'POTENTIAL_GAP', 'NOT_VERIFIED'].map((st) => (
-              <button
-                key={st}
-                onClick={() => setSelectedStateFilter(st)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition cursor-pointer flex-shrink-0 ${
-                  selectedStateFilter === st
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-                }`}
-              >
-                {st.replace('_', ' ')}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="sm:hidden px-4 py-2 bg-slate-50 dark:bg-slate-800/40 text-[11px] text-slate-500 border-b border-slate-200 dark:border-slate-800">
-          Scroll horizontally to see full evidence & rationale →
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs sm:text-sm min-w-[620px]">
-            <thead className="bg-slate-50 dark:bg-slate-800/50 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
-              <tr>
-                <th className="px-4 sm:px-6 py-3 w-28">Control ID</th>
-                <th className="px-4 sm:px-6 py-3 w-64">Title</th>
-                <th className="px-4 sm:px-6 py-3 w-36">Status</th>
-                <th className="px-4 sm:px-6 py-3">Rationale / Evidence</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {filteredControls.map((c) => (
-                <tr key={c.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition">
-                  <td className="px-4 sm:px-6 py-3.5 font-mono font-bold text-xs text-blue-600 dark:text-blue-400">
-                    {c.control_id}
-                  </td>
-                  <td className="px-4 sm:px-6 py-3.5 font-medium text-slate-900 dark:text-white">
-                    {c.title}
-                  </td>
-                  <td className="px-4 sm:px-6 py-3.5 whitespace-nowrap">
-                    {renderStateBadge(c.state)}
-                  </td>
-                  <td className="px-4 sm:px-6 py-3.5 text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                    {c.rationale}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Finding Detail Drawer Modal */}
-      {selectedFinding && (
-        <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex justify-end"
-          role="dialog"
-          aria-modal="true"
-          onClick={() => setSelectedFinding(null)}
-        >
-          <div
-            className="w-full max-w-xl bg-white dark:bg-slate-900 h-full overflow-y-auto p-5 sm:p-8 shadow-2xl flex flex-col justify-between"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div>
-              <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-200 dark:border-slate-800">
-                <span className="text-xs font-mono text-slate-500">Finding: {selectedFinding.id.slice(0, 8)}</span>
-                <button
-                  onClick={() => setSelectedFinding(null)}
-                  className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition cursor-pointer"
-                  aria-label="Close dialog"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="flex items-center gap-2 mb-3">
-                <span className="px-2.5 py-0.5 rounded text-xs font-bold bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300">
-                  {selectedFinding.severity}
-                </span>
-                <span className="text-xs font-mono text-slate-500">Confidence: {selectedFinding.confidence}</span>
-              </div>
-
-              <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white mb-2">
-                {selectedFinding.title}
-              </h2>
-              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mb-6 leading-relaxed">
-                {selectedFinding.description}
-              </p>
-
-              {/* Redacted Evidence Block */}
-              <div className="mb-6">
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
-                  <Code className="w-4 h-4" /> Redacted Source Snippet
+                <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed bg-red-50/50 dark:bg-red-950/20 p-3 rounded-xl border border-red-100 dark:border-red-900/40">
+                  {ch.narrative_story}
                 </p>
-                <div className="bg-slate-950 rounded-xl p-3.5 sm:p-4 overflow-x-auto border border-slate-800">
-                  <div className="text-[11px] font-mono text-slate-500 mb-2 truncate">
-                    {selectedFinding.file_path}:{selectedFinding.start_line}
-                  </div>
-                  <pre className="text-xs font-mono text-emerald-400 whitespace-pre-wrap">
-                    {selectedFinding.redacted_snippet}
-                  </pre>
+
+                <div>
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                    Compound Traversal Steps
+                  </h4>
+                  <ol className="list-decimal list-inside space-y-1 text-xs text-slate-600 dark:text-slate-400 pl-1">
+                    {ch.traversal_steps.map((st, i) => (
+                      <li key={i}>{st}</li>
+                    ))}
+                  </ol>
+                </div>
+
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+                  <span className="font-semibold text-emerald-600">Remediation: </span>
+                  <span className="text-slate-600 dark:text-slate-400">{ch.remediation_strategy}</span>
                 </div>
               </div>
+            ))
+          )}
+        </div>
+      )}
 
-              {/* Remediation Action */}
-              {selectedFinding.remediation && (
-                <div className="p-4 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-xl mb-6">
-                  <p className="text-xs font-bold text-blue-900 dark:text-blue-300 uppercase tracking-wider mb-1">
-                    Technical Remediation Fix
-                  </p>
-                  <p className="text-xs sm:text-sm text-blue-800 dark:text-blue-200 mb-3 leading-relaxed">
-                    {selectedFinding.remediation.technical_fix}
-                  </p>
-                  {selectedFinding.remediation.validation_steps && (
-                    <div className="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
-                      <span className="font-semibold">Validation Steps: </span>
-                      {selectedFinding.remediation.validation_steps}
-                    </div>
-                  )}
-                </div>
-              )}
+      {/* TAB 6: SBOM VIEW */}
+      {activeTab === 'sbom' && (
+        <div className="space-y-4">
+          <div className="p-4 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-indigo-900 dark:text-indigo-200">
+            <div>
+              <p className="font-semibold mb-0.5">Software Bill of Materials (SBOM) Exporter</p>
+              <p>Standardized package inventories supporting supply chain integrity and license verification.</p>
             </div>
-
-            <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex justify-end">
+            <div className="flex gap-2">
               <button
-                onClick={() => setSelectedFinding(null)}
-                className="w-full sm:w-auto px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-sm font-semibold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition cursor-pointer"
+                onClick={() => handleExportSbom('cyclonedx')}
+                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold"
               >
-                Close Drawer
+                Download CycloneDX 1.6
+              </button>
+              <button
+                onClick={() => handleExportSbom('spdx')}
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold"
+              >
+                Download SPDX 2.3
               </button>
             </div>
           </div>
@@ -447,4 +554,5 @@ export const SecurityPage: React.FC = () => {
     </div>
   );
 };
+
 export default SecurityPage;

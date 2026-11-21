@@ -1,0 +1,15 @@
+{
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "X-Debug-Mode", "value": "true" }
+      ]
+    }
+  ],
+  "rewrites": [
+    { "source": "/debug", "destination": "/api/debug" },
+    { "source": "/admin-bypass", "destination": "/api/admin" }
+  ]
+}

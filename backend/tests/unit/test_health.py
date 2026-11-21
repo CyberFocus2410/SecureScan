@@ -12,7 +12,7 @@ def test_health_endpoint():
     data = response.json()
     assert data["status"] == "OK"
     assert data["version"] == settings.VERSION
-    assert data["as_of_date"] == "2026-11-14"
+    assert data["as_of_date"] == settings.AS_OF_DATE
     assert "services" in data
     assert data["services"]["database"] == "CONNECTED"
 

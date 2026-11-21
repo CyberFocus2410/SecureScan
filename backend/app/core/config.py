@@ -1,8 +1,9 @@
 """Application configuration using Pydantic Settings."""
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Union, List
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -22,7 +23,13 @@ class Settings(BaseSettings):
     RQ_QUEUE_NAME: str = "securescan_audits"
 
     # Governance & Dates
-    AS_OF_DATE: str = "2026-11-14"
+    AS_OF_DATE: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        description="Statutory baseline as-of date (UTC). Defaults to today's date."
+    )
+
+    # Sandbox Isolation (Architecture §5, ADR-002)
+    SANDBOX_BACKEND: str = "auto"
 
     # Security & CORS
     CORS_ORIGINS: list[str] = [
