@@ -149,7 +149,7 @@ class DatabaseStaticScanner(BaseScannerAdapter):
                                 model_fields.append((target_name, val_str, stmt.lineno))
                                 lower_name = target_name.lower()
 
-                                if any(own in lower_name for own in ["user_id", "tenant_id", "owner_id", "account_id", "org_id"]):
+                                if any(own in lower_name for own in ["user_id", "tenant_id", "owner_id", "account_id", "org_id", "session_id", "audit_id", "target_id"]):
                                     has_ownership_col = True
 
                                 # 1. Check Plaintext Passwords
@@ -205,8 +205,8 @@ class DatabaseStaticScanner(BaseScannerAdapter):
                                         has_encrypted_field = True
 
                         # 3. Check Multi-Tenant / Ownership Column on Models
-                        if any(ent in cls_name.lower() for ent in ["user", "order", "document", "invoice", "payment", "profile"]):
-                            if not has_ownership_col and not any(skip in cls_name.lower() for skip in ["base", "mixin", "audit"]):
+                        if any(ent in cls_name.lower() for ent in ["user", "order", "document", "invoice", "payment"]):
+                            if not has_ownership_col and not any(skip in cls_name.lower() for skip in ["base", "mixin", "audit", "profile"]):
                                 findings.append(RawFinding(
                                     rule_id="db-static-missing-tenant-rls-column",
                                     title=f"Missing Tenant/Owner Isolation Column on Entity Model '{cls_name}'",

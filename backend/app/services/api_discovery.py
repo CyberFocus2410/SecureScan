@@ -125,6 +125,15 @@ class ApiDiscoveryEngine:
 
         for fpath in set(candidate_files):
             try:
+                rel = fpath.relative_to(repo_dir).as_posix()
+                parts = rel.split("/")
+                # Skip test directories, node_modules, and virtualenvs
+                if any(p in ("tests", "test", "node_modules", ".venv") for p in parts):
+                    continue
+                # Skip fixture directory if scanning a full project containing backend source
+                if "fixtures" in parts and (repo_dir / "backend").exists():
+                    continue
+
                 content = fpath.read_text(encoding="utf-8", errors="ignore")
                 data = None
                 if fpath.suffix.lower() == ".json":
@@ -274,12 +283,14 @@ class ApiDiscoveryEngine:
                             method = match.group(1).upper()
                             path_str = match.group(2)
                             obj_params = [m.group(1) for m in OBJECT_ID_PARAM_REGEX.finditer(path_str)]
-                            has_auth = "Depends" in line or any("get_current_user" in lines[min(idx, len(lines)-1)] for _ in [0])
+                            # Look ahead for function signature to capture Depends / get_session_id / get_current_user
+                            sig_window = "\n".join(lines[max(0, idx - 1):min(idx + 6, len(lines))])
+                            has_auth = any(kw in sig_window for kw in ["Depends(", "Security(", "get_current_user", "get_session_id", "oauth2_scheme", "HTTPBearer", "APIKeyHeader"])
                             
-                            # Inspect function body below for authz/tenant check
-                            fn_body = "\n".join(lines[idx:min(idx + 15, len(lines))])
-                            authz_seen = bool(re.search(r"""(?:user_id\s*==|current_user\.id|owner_id|tenant_id)""", fn_body))
-                            has_rate_limit = bool(re.search(r"""@limiter\.limit""", "\n".join(lines[max(0, idx-3):idx])))
+                            # Inspect function body below for authz/tenant check (e.g. user_id ==, audit.session_id != session_id)
+                            fn_body = "\n".join(lines[idx:min(idx + 35, len(lines))])
+                            authz_seen = bool(re.search(r"""(?:user_id\s*==|current_user\.id|owner_id|tenant_id|session_id\s*==|session_id\s*!=|\.session_id)""", fn_body))
+                            has_rate_limit = bool(re.search(r"""@limiter\.limit|RateLimitMiddleware""", sig_window))
 
                             endpoints.append(DiscoveredEndpoint(
                                 method=method,
