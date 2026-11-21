@@ -13,10 +13,10 @@ SecureScan 2.0 is a full-stack automated application security-testing, risk-inte
 | Item | State |
 |---|---|
 | Master Spec 2.0 | `prompt2_0.md` (v2.0) |
-| Architecture Decision | `docs/adr-002-securescan-2.md`, ADR-003..ADR-014 (**Accepted**) |
+| Architecture Decision | `docs/adr-002-securescan-2.md`, ADR-003..ADR-009 (**Accepted**) |
 | Roadmap & Breakdown | `docs/task_breakdown_2_0.md` (**Completed for Steps 2–16**) |
-| Test Suite Baseline | **161 / 161 passing** (85 baseline + 9 Step 2 + 8 Step 3 + 4 Step 4 + 6 Step 5 + 6 Step 6 + 10 Step 7 + 5 Step 8 + 3 Step 9 + 7 Step 10 + 3 Step 11 + 5 Step 12 + 3 Step 13 + 3 Step 14 + 4 Step 15) |
-| Active Phase | **SecureScan 2.0 (Steps 1 through 16) — ALL 16 STEPS FULLY COMPLETED & VERIFIED** |
+| Test Suite Baseline | **133 / 133 passing** (85 baseline + 9 Step 2 + 8 Step 3 + 4 Step 4 + 6 Step 5 + 6 Step 6 + 10 Step 7 + 5 Step 8) |
+| Active Phase | **SecureScan 2.0 Step 8 (API Security Engine & OWASP API Top 10)** COMPLETED |
 
 ### 2.0 Step Tracker
 
@@ -30,14 +30,14 @@ SecureScan 2.0 is a full-stack automated application security-testing, risk-inte
 | **Step 6** | Database security module (static + runtime exposure) | **Completed** |
 | **Step 7** | DAST engine, web testing & Lab benchmark (Juice Shop/DVWA) | **Completed** |
 | **Step 8** | API security engine & OWASP API Top 10 | **Completed** |
-| **Step 9** | Authentication & authorization testing (multi-account matrix) | **Completed** |
-| **Step 10** | DPDP privacy & compliance engine (re-verified Gazettes) | **Completed** |
-| **Step 11** | AI / LLM application security (OWASP LLM Top 10) | **Completed** |
-| **Step 12** | Risk intelligence, AI Security Analyst & Fix Pack generator | **Completed** |
-| **Step 13** | Professional multi-format reports (HTML, PDF, MD, JSON, SARIF) | **Completed** |
-| **Step 14** | Frontend upgrade & navigation (zero regressions) | **Completed & Verified** |
-| **Step 15** | Continuous security, scheduled re-scans & CI gate CLI | **Completed & Verified** |
-| **Step 16** | Hardening, evidence & production release | **Completed & Verified** |
+| **Step 9** | Authentication & authorization testing (multi-account matrix) | Planned (Next) |
+| **Step 10** | DPDP privacy & compliance engine (re-verified Gazettes) | Planned |
+| **Step 11** | AI / LLM application security (OWASP LLM Top 10) | Planned |
+| **Step 12** | Risk intelligence, AI Security Analyst & Fix Pack generator | Planned |
+| **Step 13** | Professional multi-format reports (HTML, PDF, MD, JSON, SARIF) | Planned |
+| **Step 14** | Frontend upgrade & navigation (zero regressions) | Planned |
+| **Step 15** | Continuous security, scheduled re-scans & CI gate CLI | Planned |
+| **Step 16** | Hardening, evidence & production release | Planned |
 
 ### Milestone tracker
 

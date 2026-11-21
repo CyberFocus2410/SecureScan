@@ -23,7 +23,7 @@ SENSITIVE_FIELD_NAMES = {
 }
 
 RATE_LIMIT_MARKERS_FASTAPI = [
-    "limiter.limit", "RateLimiter", "slowapi", "redis_rate_limit"
+    "limiter.limit", "RateLimiter", "slowapi", "redis_rate_limit", "RateLimitMiddleware", "rate_limiter", "rate_limit"
 ]
 
 RATE_LIMIT_MARKERS_EXPRESS = [
@@ -116,6 +116,23 @@ class CustomRulesScanner(BaseScannerAdapter):
     def _scan_fastapi(self, worktree_dir: Path) -> list[RawFinding]:
         findings: list[RawFinding] = []
 
+        # Check repo-wide global limiter in FastAPI apps
+        repo_has_global_limiter = False
+        for root, _, files in os.walk(worktree_dir):
+            if ".git" in root or "venv" in root or "node_modules" in root:
+                continue
+            for fname in files:
+                if fname.endswith(".py"):
+                    try:
+                        content_peek = (Path(root) / fname).read_text(encoding="utf-8", errors="ignore")
+                        if any(marker in content_peek for marker in ["RateLimitMiddleware", "SlowAPIMiddleware", "add_middleware(RateLimit"]):
+                            repo_has_global_limiter = True
+                            break
+                    except Exception:
+                        pass
+            if repo_has_global_limiter:
+                break
+
         for root, _, files in os.walk(worktree_dir):
             if ".git" in root or "venv" in root or "node_modules" in root:
                 continue
@@ -134,7 +151,7 @@ class CustomRulesScanner(BaseScannerAdapter):
                 findings.extend(self._check_fastapi_dto_exposure(tree, rel_path, content))
 
                 # 2. Rate Limiting on Routes (SEC-005, SEC-006)
-                findings.extend(self._check_fastapi_rate_limiting(tree, rel_path, content))
+                findings.extend(self._check_fastapi_rate_limiting(tree, rel_path, content, has_global_limiter=repo_has_global_limiter))
 
                 # 3. Missing Route Authentication on Admin/Private endpoints (SEC-007)
                 findings.extend(self._check_fastapi_auth(tree, rel_path, content))
@@ -169,6 +186,9 @@ class CustomRulesScanner(BaseScannerAdapter):
                     for base in node.bases
                 )
                 if is_pydantic or "response" in node.name.lower() or "dto" in node.name.lower() or "out" in node.name.lower():
+                    # Exclude verification/challenge tokens which are inherently public challenge proofs
+                    if any(w in node.name.lower() for w in ["challenge", "verification"]):
+                        continue
                     for stmt in node.body:
                         # Check field definitions: field_name: type = ...
                         if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
@@ -197,7 +217,7 @@ class CustomRulesScanner(BaseScannerAdapter):
                                 ))
         return findings
 
-    def _check_fastapi_rate_limiting(self, tree: ast.AST, rel_path: str, content: str) -> list[RawFinding]:
+    def _check_fastapi_rate_limiting(self, tree: ast.AST, rel_path: str, content: str, has_global_limiter: bool = False) -> list[RawFinding]:
         """Flag API routes missing rate limiter markers (SEC-005/006) as POTENTIAL_GAP."""
         findings = []
         lines = content.splitlines()
@@ -217,9 +237,9 @@ class CustomRulesScanner(BaseScannerAdapter):
                         has_limiter = True
 
                 if is_route and not has_limiter:
-                    # Check if global limiter middleware exists in file
-                    has_global_limiter = any(marker in content for marker in RATE_LIMIT_MARKERS_FASTAPI)
-                    if not has_global_limiter:
+                    # Check if global limiter middleware exists in file or repo
+                    file_or_repo_limiter = has_global_limiter or any(marker in content for marker in RATE_LIMIT_MARKERS_FASTAPI)
+                    if not file_or_repo_limiter:
                         is_auth_route = any(w in node.name.lower() for w in ["login", "token", "auth", "otp", "password", "reset"])
                         rule_id = "sec-006-auth-bruteforce-missing" if is_auth_route else "sec-005-missing-rate-limit"
                         title = "Authentication Endpoint Missing Rate Limiter (Brute-Force Risk)" if is_auth_route else "Endpoint Possibly Missing Rate Limiting"
@@ -253,6 +273,16 @@ class CustomRulesScanner(BaseScannerAdapter):
 
         for node in ast.walk(tree):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                # Only check functions that are FastAPI route handlers
+                is_route = False
+                for dec in node.decorator_list:
+                    dec_src = ast.unparse(dec) if hasattr(ast, "unparse") else ""
+                    if any(verb in dec_src.lower() for verb in [".get(", ".post(", ".put(", ".delete(", ".patch("]):
+                        is_route = True
+                        break
+                if not is_route:
+                    continue
+
                 func_name = node.name.lower()
                 is_admin = any(w in func_name for w in ["admin", "internal", "delete_all", "priv"])
                 if is_admin:
@@ -261,10 +291,10 @@ class CustomRulesScanner(BaseScannerAdapter):
                         dec_src = ast.unparse(dec) if hasattr(ast, "unparse") else ""
                         if any(marker in dec_src for marker in AUTH_MARKERS_FASTAPI):
                             has_auth = True
-                    # Check args for Depends(get_current_user)
-                    for arg in node.args.args:
-                        # arg default or annotation
-                        pass
+                    # Check args for Depends(...) or auth markers
+                    func_signature = ast.unparse(node.args) if hasattr(ast, "unparse") else ""
+                    if any(marker in func_signature for marker in AUTH_MARKERS_FASTAPI):
+                        has_auth = True
 
                     if not has_auth and not any(marker in content for marker in AUTH_MARKERS_FASTAPI):
                         line_num = node.lineno
@@ -326,6 +356,16 @@ class CustomRulesScanner(BaseScannerAdapter):
 
         for node in ast.walk(tree):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                # Only check functions that are FastAPI route handlers
+                is_route = False
+                for dec in node.decorator_list:
+                    dec_src = ast.unparse(dec) if hasattr(ast, "unparse") else ""
+                    if any(verb in dec_src.lower() for verb in [".get(", ".post(", ".put(", ".delete(", ".patch("]):
+                        is_route = True
+                        break
+                if not is_route:
+                    continue
+
                 # Route that does query.all() or fetchall() without limit
                 func_src = ast.unparse(node) if hasattr(ast, "unparse") else ""
                 if any(m in func_src for m in [".all()", ".fetchall()"]):
@@ -467,6 +507,23 @@ class CustomRulesScanner(BaseScannerAdapter):
 
         route_pattern = re.compile(r"""(?:app|router)\.(get|post|put|delete|patch)\s*\(\s*['"]([^'"]+)['"]\s*,\s*(.*?)(?=\);|\}\s*\);)""", re.DOTALL)
 
+        # Check repo-wide global limiter in Express apps
+        repo_has_global_limiter = False
+        for root, _, files in os.walk(worktree_dir):
+            if ".git" in root or "node_modules" in root:
+                continue
+            for fname in files:
+                if fname.endswith((".js", ".ts")):
+                    try:
+                        content_peek = (Path(root) / fname).read_text(encoding="utf-8", errors="ignore")
+                        if ("app.use(" in content_peek or "router.use(" in content_peek) and any(m in content_peek for m in RATE_LIMIT_MARKERS_EXPRESS):
+                            repo_has_global_limiter = True
+                            break
+                    except Exception:
+                        pass
+            if repo_has_global_limiter:
+                break
+
         for root, _, files in os.walk(worktree_dir):
             if ".git" in root or "node_modules" in root:
                 continue
@@ -482,7 +539,7 @@ class CustomRulesScanner(BaseScannerAdapter):
                     continue
 
                 # 1. Rate Limiting Check on Express Routes (SEC-005, SEC-006)
-                has_global_limiter = any(m in content for m in RATE_LIMIT_MARKERS_EXPRESS)
+                has_global_limiter = repo_has_global_limiter or any(m in content for m in RATE_LIMIT_MARKERS_EXPRESS)
                 for match in route_pattern.finditer(content):
                     method, path_str, handlers = match.groups()
                     start_line = content[:match.start()].count("\n") + 1
@@ -597,6 +654,8 @@ class CustomRulesScanner(BaseScannerAdapter):
                 fpath = Path(root) / fname
                 try:
                     rel_path = str(fpath.resolve().relative_to(Path(worktree_dir).resolve())).replace("\\", "/")
+                    if rel_path.startswith("backend/app/scanners/") or rel_path.startswith("backend/app/rules/"):
+                        continue
                     content = fpath.read_text(encoding="utf-8", errors="ignore")
                 except Exception:
                     continue
@@ -677,6 +736,8 @@ class CustomRulesScanner(BaseScannerAdapter):
                 fpath = Path(root) / fname
                 try:
                     rel_path = str(fpath.resolve().relative_to(Path(worktree_dir).resolve())).replace("\\", "/")
+                    if rel_path.startswith("backend/app/scanners/") or rel_path.startswith("backend/app/rules/"):
+                        continue
                     content = fpath.read_text(encoding="utf-8", errors="ignore")
                 except Exception:
                     continue
@@ -741,6 +802,8 @@ class CustomRulesScanner(BaseScannerAdapter):
                 fpath = Path(root) / fname
                 try:
                     rel_path = str(fpath.resolve().relative_to(Path(worktree_dir).resolve())).replace("\\", "/")
+                    if rel_path.startswith("backend/app/scanners/") or rel_path.startswith("backend/app/rules/"):
+                        continue
                     content = fpath.read_text(encoding="utf-8", errors="ignore")
                 except Exception:
                     continue
@@ -775,8 +838,9 @@ class CustomRulesScanner(BaseScannerAdapter):
                                 validation_steps="Verify input containing '; sleep 5' is not executed by the shell."
                             ))
 
-                    # 2. Server-Side Request Forgery (SSRF): Source -> Sink
-                    if any(sink in trimmed for sink in ["requests.get(", "requests.post(", "urllib.request.urlopen(", "fetch(", "axios.get(", "http.get("]):
+                    # 2. Server-Side Request Forgery (SSRF): Source -> Sink (skip frontend browser code)
+                    is_frontend_asset = any(p in rel_path.split("/") for p in ["frontend", "client", "ui", "components", "pages"])
+                    if not is_frontend_asset and any(sink in trimmed for sink in ["requests.get(", "requests.post(", "urllib.request.urlopen(", "fetch(", "axios.get(", "http.get("]):
                         if any(src in trimmed for src in ["request.args", "req.query", "req.body", "url", "target", "webhook"]) and not any(safe in trimmed for safe in ["is_safe_url", "safe_fetch", "allowed_hosts", "whitelist"]):
                             findings.append(RawFinding(
                                 rule_id="sec-sast-ssrf-source-sink",
