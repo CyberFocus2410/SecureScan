@@ -30,6 +30,7 @@ class Settings(BaseSettings):
 
     # Sandbox Isolation (Architecture §5, ADR-002)
     SANDBOX_BACKEND: str = "auto"
+    SANDBOX_ALLOW_HOSTED_SUBPROCESS: bool = False
 
     # Security & CORS
     CORS_ORIGINS: list[str] = [

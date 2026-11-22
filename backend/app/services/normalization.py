@@ -176,6 +176,9 @@ def normalize_and_persist_scan_results(
                 elif scanner_name == "gitleaks" and "trufflehog" in raw.rule_id:
                     tool_val = "trufflehog"
 
+                clean_title = redact_text(raw.title or "")
+                clean_desc = redact_text(raw.description or "")
+
                 finding_model = FindingModel(
                     id=finding_id,
                     audit_id=audit_id,
@@ -186,8 +189,8 @@ def normalize_and_persist_scan_results(
                     category=raw.category,
                     severity=sev_val,
                     confidence=conf_val,
-                    title=raw.title,
-                    description=raw.description,
+                    title=clean_title,
+                    description=clean_desc,
                     file_path=clean_path,
                     start_line=raw.start_line,
                     end_line=raw.end_line,
@@ -202,8 +205,8 @@ def normalize_and_persist_scan_results(
                     verified_state="CONFIRMED" if conf_val == "CONFIRMED" else "LIKELY",
                     priority=prio,
                     standards=stds,
-                    plain_title=raw.title,
-                    plain_summary=raw.description,
+                    plain_title=clean_title,
+                    plain_summary=clean_desc,
                     why_it_matters=f"Vulnerability in {clean_path} affecting application security posture.",
                     how_to_fix=raw.technical_fix or "Remediate source code according to safe patterns.",
                     how_to_verify_fix=raw.validation_steps or "Re-scan repository worktree.",

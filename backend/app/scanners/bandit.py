@@ -7,6 +7,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from app.core.security import redact_text
 from app.schemas.enums import ScannerName, Severity, Confidence
 from app.schemas.finding import FindingCreate, FindingRemediation
 from app.scanners.base import (
@@ -132,17 +133,19 @@ class BanditAdapter(BaseScannerAdapter):
                         except ValueError:
                             pass
 
+                    issue_text = res.get("issue_text", "")
+                    clean_text = redact_text(issue_text) if issue_text else "Bandit AST Finding"
                     findings.append(RawFinding(
                         rule_id=res.get("test_id", "B000"),
-                        title=res.get("issue_text", "Bandit AST Finding"),
-                        description=res.get("issue_text", ""),
+                        title=clean_text,
+                        description=clean_text,
                         category="misconfig",
                         severity=Severity.MEDIUM,
                         confidence=Confidence.HIGH,
                         file_path=rel_file,
                         start_line=res.get("line_number", 1),
                         end_line=res.get("line_number", 1),
-                        raw_snippet=res.get("code", "").strip(),
+                        raw_snippet=redact_text(res.get("code", "").strip()),
                         cwe_ids=[f"CWE-{res.get('issue_cwe', {}).get('id', 0)}"],
                         owasp_refs=["A05:2025"],
                         technical_fix="Refactor code according to Python secure coding standards.",
@@ -164,8 +167,8 @@ class BanditAdapter(BaseScannerAdapter):
                 scanner_name=ScannerName.BANDIT,
                 scanner_version=self.VERSION,
                 rule_id=raw.rule_id,
-                title=raw.title,
-                description=raw.description,
+                title=redact_text(raw.title),
+                description=redact_text(raw.description),
                 category=raw.category,
                 severity=raw.severity,
                 confidence=raw.confidence,
@@ -174,7 +177,7 @@ class BanditAdapter(BaseScannerAdapter):
                 end_line=raw.end_line,
                 cwe_ids=raw.cwe_ids,
                 owasp_refs=raw.owasp_refs,
-                redacted_snippet=raw.raw_snippet,
+                redacted_snippet=redact_text(raw.raw_snippet),
                 remediation=FindingRemediation(
                     technical_fix=raw.technical_fix or "Remediate AST security finding.",
                     validation_steps=raw.validation_steps or "Rerun Bandit."

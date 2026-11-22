@@ -6,6 +6,7 @@ from app.sandbox.base import SandboxUnavailableError
 from app.sandbox.docker import DockerSandbox
 from app.sandbox.bubblewrap import BubblewrapSandbox
 from app.sandbox.subprocess_dev import SubprocessDevSandbox
+from app.sandbox.hosted_container import HostedContainerSandbox
 from app.sandbox import get_sandbox_engine
 
 
@@ -88,3 +89,43 @@ def test_get_sandbox_engine_production_fail_closed(monkeypatch):
         assert "Fail-closed policy enforced" in str(exc_info.value)
     finally:
         settings.ENVIRONMENT = orig_env
+
+
+def test_hosted_container_sandbox_execution():
+    """Verify HostedContainerSandbox executes commands when enabled for PaaS environments."""
+    orig_env = settings.ENVIRONMENT
+    orig_allow = settings.SANDBOX_ALLOW_HOSTED_SUBPROCESS
+    try:
+        settings.ENVIRONMENT = "production"
+        settings.SANDBOX_ALLOW_HOSTED_SUBPROCESS = True
+        engine = HostedContainerSandbox()
+        assert engine.is_available() is True
+        assert engine.name == "hosted-container"
+
+        code, stdout, stderr, dur = engine.execute(
+            ["python", "-c", "print('hello hosted container')"],
+            Path.cwd()
+        )
+        assert code == 0
+        assert "hello hosted container" in stdout
+    finally:
+        settings.ENVIRONMENT = orig_env
+        settings.SANDBOX_ALLOW_HOSTED_SUBPROCESS = orig_allow
+
+
+def test_get_sandbox_engine_hosted_in_production(monkeypatch):
+    """Verify get_sandbox_engine selects HostedContainerSandbox in production when permitted."""
+    orig_env = settings.ENVIRONMENT
+    orig_allow = settings.SANDBOX_ALLOW_HOSTED_SUBPROCESS
+    try:
+        settings.ENVIRONMENT = "production"
+        settings.SANDBOX_ALLOW_HOSTED_SUBPROCESS = True
+        monkeypatch.setattr(DockerSandbox, "is_available", lambda self: False)
+        monkeypatch.setattr(BubblewrapSandbox, "is_available", lambda self: False)
+
+        engine = get_sandbox_engine("auto")
+        assert isinstance(engine, HostedContainerSandbox)
+        assert engine.name == "hosted-container"
+    finally:
+        settings.ENVIRONMENT = orig_env
+        settings.SANDBOX_ALLOW_HOSTED_SUBPROCESS = orig_allow

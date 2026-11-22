@@ -115,6 +115,8 @@ If you prefer serverless/managed platforms without managing Docker VMs:
    - `CORS_ORIGIN_REGEX`: `^https?:\/\/(localhost|127\.0\.0\.1|.*\.vercel\.app|(.*\.)?securescanbox\.xyz)(:\d+)?$`
    - `ENVIRONMENT`: `production`
    - `DEBUG`: `false`
+   - `SANDBOX_ALLOW_HOSTED_SUBPROCESS`: `true` *(Enables execution of pinned primary security tool CLIs inside Render's isolated PaaS container)*
+   - `SANDBOX_BACKEND`: `hosted-container`
    - `WEBHOOK_SECRET`: `your_random_hmac_secret_key`
 
 > [!TIP]

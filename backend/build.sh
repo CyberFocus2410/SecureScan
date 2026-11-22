@@ -11,4 +11,7 @@ python -m pip install --upgrade pip setuptools wheel
 echo "==> Installing backend dependencies with pre-built binary wheels..."
 python -m pip install --prefer-binary -r requirements.txt
 
+echo "==> Installing pinned primary security scanner tools (tools.lock)..."
+python scripts/install_tools.py
+
 echo "==> Build successful!"

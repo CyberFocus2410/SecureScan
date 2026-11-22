@@ -1,7 +1,9 @@
 """OSV-Scanner adapter: offline lockfile parsing + trusted advisory resolution (FR-SCN)."""
 import hashlib
 import json
+import logging
 import re
+import shutil
 import time
 import uuid
 from pathlib import Path
@@ -15,6 +17,9 @@ from app.scanners.base import (
     RawFinding,
     ScannerExecutionResult
 )
+from app.scanners.runner import execute_sandboxed_command
+
+logger = logging.getLogger(__name__)
 
 
 class OsvScannerAdapter(BaseScannerAdapter):
@@ -70,11 +75,31 @@ class OsvScannerAdapter(BaseScannerAdapter):
                 error_message="No recognized dependency lockfile found. Dependency vulnerabilities could not be verified."
             )
 
+        cli_findings: list[RawFinding] = []
+        has_cli = shutil.which("osv-scanner") is not None
+        if has_cli:
+            try:
+                cmd = ["osv-scanner", "--format", "json", "-r", str(worktree_dir)]
+                code, stdout, stderr, dur = execute_sandboxed_command(cmd, worktree_dir)
+                if stdout:
+                    cli_findings = self._parse_osv_cli_output(stdout, worktree_dir)
+                    logger.info("OSV-Scanner CLI executed: %d findings found", len(cli_findings))
+            except Exception as exc:
+                logger.warning("OSV-Scanner CLI execution failed (%s), using offline fallback", exc)
+
         # Stage 1: Parse lockfiles offline (Z4)
         extracted_packages = self._parse_lockfiles(lockfiles, worktree_dir)
 
         # Stage 2: Query advisory database (Z5)
-        raw_findings = self._resolve_advisories(extracted_packages, worktree_dir)
+        offline_findings = self._resolve_advisories(extracted_packages, worktree_dir)
+
+        # Merge findings, prioritizing CLI results and deduplicating by rule_id
+        merged_findings = list(cli_findings)
+        seen_rules = {f.rule_id for f in cli_findings}
+        for f in offline_findings:
+            if f.rule_id not in seen_rules:
+                merged_findings.append(f)
+                seen_rules.add(f.rule_id)
 
         duration_ms = int((time.time() - start) * 1000)
         return ScannerExecutionResult(
@@ -82,8 +107,65 @@ class OsvScannerAdapter(BaseScannerAdapter):
             version=self.VERSION,
             status="COMPLETED",
             duration_ms=duration_ms,
-            raw_findings=raw_findings
+            raw_findings=merged_findings
         )
+
+    def _parse_osv_cli_output(self, stdout: str, worktree_dir: Path) -> list[RawFinding]:
+        """Parse structured JSON results emitted by osv-scanner CLI."""
+        findings: list[RawFinding] = []
+        try:
+            data = json.loads(stdout)
+            for res_item in data.get("results", []):
+                source_info = res_item.get("source", {})
+                src_path = source_info.get("path", "")
+                try:
+                    rel_path = str(Path(src_path).resolve().relative_to(Path(worktree_dir).resolve())).replace("\\", "/")
+                except Exception:
+                    rel_path = src_path or "package-lock.json"
+
+                for pkg_entry in res_item.get("packages", []):
+                    pkg = pkg_entry.get("package", {})
+                    pkg_name = pkg.get("name", "unknown")
+                    pkg_ver = pkg.get("version", "unknown")
+                    eco = pkg.get("ecosystem", "")
+
+                    for vuln in pkg_entry.get("vulnerabilities", []):
+                        vuln_id = vuln.get("id", "OSV-VULN")
+                        aliases = vuln.get("aliases", [])
+                        cve_ref = next((a for a in aliases if a.startswith("CVE-")), vuln_id)
+                        summary = vuln.get("summary") or vuln.get("details", f"Vulnerability {vuln_id} in {pkg_name}@{pkg_ver}")
+
+                        sev_str = "HIGH"
+                        db_spec = vuln.get("database_specific", {})
+                        if isinstance(db_spec, dict) and "severity" in db_spec:
+                            sev_str = str(db_spec["severity"]).upper()
+                        severity_map = {
+                            "CRITICAL": Severity.CRITICAL,
+                            "HIGH": Severity.HIGH,
+                            "MEDIUM": Severity.MEDIUM,
+                            "LOW": Severity.LOW
+                        }
+                        sev = severity_map.get(sev_str, Severity.HIGH)
+
+                        findings.append(RawFinding(
+                            rule_id=vuln_id,
+                            title=f"Vulnerable Dependency: {pkg_name}@{pkg_ver} ({cve_ref})",
+                            description=summary[:500],
+                            category="dependency",
+                            severity=sev,
+                            confidence=Confidence.CONFIRMED,
+                            file_path=rel_path,
+                            start_line=1,
+                            end_line=1,
+                            raw_snippet=f"{pkg_name}=={pkg_ver}",
+                            cwe_ids=["CWE-1395"],
+                            owasp_refs=["A06:2025"],
+                            technical_fix=f"Upgrade {pkg_name} to a non-vulnerable patched version in {rel_path}.",
+                            validation_steps=f"Re-run OSV-Scanner; verify {vuln_id} is no longer reported."
+                        ))
+        except Exception as e:
+            logger.warning("Failed parsing OSV-Scanner CLI JSON: %s", e)
+        return findings
 
     def _parse_lockfiles(self, lockfiles: list[Path], worktree_dir: Path) -> list[dict[str, Any]]:
         packages = []

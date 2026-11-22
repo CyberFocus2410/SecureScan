@@ -10,7 +10,7 @@ from typing import Any, Sequence
 REDACTION_PATTERN = re.compile(
     r"""(?xi)
     # Generic key-value assignment patterns with secrets
-    (?P<prefix>(?:password|passwd|secret|api_key|apikey|access_token|auth_token|token|private_key|client_secret)\s*[:=]\s*["']?)
+    (?P<prefix>(?:password|passwd|secret|api_key|apikey|access_token|auth_token|token|private_key|client_secret|aws_secret_access_key|aws_access_key_id|key)\s*[:=]\s*["']?)
     (?P<secret>[A-Za-z0-9_\-\.\+/]{8,})
     (?P<suffix>["']?)
     """

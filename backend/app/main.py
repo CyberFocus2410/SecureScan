@@ -1,4 +1,17 @@
 """SecureScan AI FastAPI application entry point."""
+import os
+import sys
+from pathlib import Path
+
+# Prepend application and local binary directories to PATH so pinned CLI tools are immediately discoverable
+_bin_dir = Path(__file__).resolve().parent.parent / ".bin"
+_local_bin = Path.home() / ".local" / "bin"
+_current_path = os.environ.get("PATH", "")
+_extra_paths = [str(_bin_dir), str(_local_bin), "/usr/local/bin", "/usr/bin", "/bin"]
+_paths_to_add = [p for p in _extra_paths if p not in _current_path]
+if _paths_to_add:
+    os.environ["PATH"] = os.pathsep.join(_paths_to_add) + os.pathsep + _current_path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError

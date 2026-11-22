@@ -1,6 +1,7 @@
 """Tool doctor diagnostic engine and fallback verification (Step 2, ADR-002, Section 5)."""
 import json
 import logging
+import os
 import re
 import shutil
 import subprocess
@@ -15,8 +16,19 @@ logger = logging.getLogger(__name__)
 
 
 def check_cli_tool(binary_name: str, version_arg: str = "--version") -> tuple[bool, str | None]:
-    """Check whether a binary is available on PATH and return its version."""
+    """Check whether a binary is available on PATH or in local .bin and return its version."""
     path = shutil.which(binary_name)
+    if not path:
+        extra_candidates = [
+            Path(__file__).resolve().parent.parent.parent / ".bin" / binary_name,
+            Path.home() / ".local" / "bin" / binary_name,
+            Path("/usr/local/bin") / binary_name,
+            Path("/usr/bin") / binary_name,
+        ]
+        for candidate in extra_candidates:
+            if candidate.is_file() and os.access(candidate, os.X_OK):
+                path = str(candidate)
+                break
     if not path:
         return False, None
     try:

@@ -151,6 +151,8 @@ class GitleaksAdapter(BaseScannerAdapter):
                         raw_secret = item.get("Secret", "")
                         # Parser-level redaction
                         raw_line = item.get("Match", "")
+                        if raw_secret and raw_line:
+                            raw_line = raw_line.replace(raw_secret, redact(raw_secret))
                         redacted_snippet = redact_text(raw_line) if raw_line else redact(raw_secret)
 
                         rel_file = item.get("File", "")

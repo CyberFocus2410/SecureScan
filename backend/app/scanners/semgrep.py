@@ -1,6 +1,7 @@
 """Semgrep adapter: SAST analysis for Python, JS, and TS (FR-SCN, FR-SEC)."""
 import hashlib
 import json
+import logging
 import re
 import shutil
 import time
@@ -18,6 +19,8 @@ from app.scanners.base import (
     ScannerExecutionResult
 )
 from app.scanners.runner import execute_sandboxed_command
+
+logger = logging.getLogger(__name__)
 
 
 class SemgrepAdapter(BaseScannerAdapter):
@@ -51,25 +54,39 @@ class SemgrepAdapter(BaseScannerAdapter):
                 "semgrep",
                 "scan",
                 "--config", "auto",
+                "--metrics=off",
+                "--disable-version-check",
                 "--json",
                 "--output", str(out_file),
                 "--quiet"
             ]
-            code, stdout, stderr, duration_ms = execute_sandboxed_command(cmd, worktree_dir)
-            result = ScannerExecutionResult(
-                scanner=ScannerName.SEMGREP,
-                version=self.VERSION,
-                status="COMPLETED" if code in (0, 1) else "FAILED",
-                duration_ms=duration_ms,
-                stdout=stdout,
-                stderr=stderr
-            )
+            try:
+                code, stdout, stderr, duration_ms = execute_sandboxed_command(cmd, worktree_dir)
+                result = ScannerExecutionResult(
+                    scanner=ScannerName.SEMGREP,
+                    version=self.VERSION,
+                    status="COMPLETED" if code in (0, 1) else "FAILED",
+                    duration_ms=duration_ms,
+                    stdout=stdout,
+                    stderr=stderr
+                )
+                parsed = self.parse(result, report_file=out_file, worktree_dir=worktree_dir)
+                if not parsed:
+                    # Augment with native AST/regex engine if semgrep returned no findings or had rule resolution issue
+                    fb = self._fallback_sast(worktree_dir)
+                    parsed = fb.raw_findings
+                result.raw_findings = parsed
+                return result
+            except Exception as exc:
+                logger.warning("Semgrep execution failed (%s), using fallback SAST engine", exc)
+                result = self._fallback_sast(worktree_dir)
+                result.raw_findings = self.parse(result, report_file=out_file, worktree_dir=worktree_dir)
+                return result
         else:
             # Fallback high-fidelity AST/regex pattern analyzer
             result = self._fallback_sast(worktree_dir)
-
-        result.raw_findings = self.parse(result, report_file=out_file, worktree_dir=worktree_dir)
-        return result
+            result.raw_findings = self.parse(result, report_file=out_file, worktree_dir=worktree_dir)
+            return result
 
     def _fallback_sast(self, worktree_dir: Path) -> ScannerExecutionResult:
         start = time.time()
