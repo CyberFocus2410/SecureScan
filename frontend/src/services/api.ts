@@ -17,7 +17,8 @@ import {
   RiskIntelligenceData,
   CompareResult,
   AuditListItem,
-  DPDPReadinessReport
+  DPDPReadinessReport,
+  AttackSurfaceData
 } from '../types/contracts';
 import * as mockData from './mockData';
 
@@ -277,6 +278,12 @@ export async function cancelAudit(auditId: string): Promise<{ audit_id: string; 
 export async function getRiskIntelligence(auditId: string): Promise<RiskIntelligenceData> {
   const res = await fetch(`${BASE_URL}/audits/${auditId}/risk-intelligence`, { headers: getHeaders() });
   if (!res.ok) throw new Error('Failed to fetch risk intelligence');
+  return res.json();
+}
+
+export async function getAttackSurface(auditId: string): Promise<AttackSurfaceData> {
+  const res = await fetch(`${BASE_URL}/audits/${auditId}/attack-surface`, { headers: getHeaders() });
+  if (!res.ok) throw new Error('Failed to fetch attack surface');
   return res.json();
 }
 

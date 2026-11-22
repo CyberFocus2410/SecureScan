@@ -22,6 +22,8 @@ from app.workers.audit_worker import (
 )
 from app.services.risk_intelligence import RiskIntelligenceEngine
 from app.services.attack_chains import AttackChainCorrelator
+from app.services.attack_surface import AttackSurfaceGenerator
+
 
 router = APIRouter(prefix="/audits", tags=["Audits"])
 
@@ -235,6 +237,10 @@ def get_audit_risk_intelligence(
 
     report = RiskIntelligenceEngine.evaluate(findings_raw)
     chains = AttackChainCorrelator.correlate(findings_raw)
+    surface = AttackSurfaceGenerator.generate(
+        findings=findings_raw,
+        repo_name=audit.repository.github_repo if audit.repository else None
+    )
 
     return {
         "audit_id": audit_id,
@@ -252,9 +258,43 @@ def get_audit_risk_intelligence(
             "methodology": report.scores.methodology,
         },
         "attack_chains": [c.to_dict() for c in chains],
+        "attack_surface": surface,
         "findings_count": report.findings_count,
         "confirmed_exploitable_count": report.confirmed_exploitable_count
     }
+
+
+@router.get("/{audit_id}/attack-surface")
+def get_attack_surface(
+    audit_id: str,
+    session_id: str = Depends(get_session_id),
+    db: Session = Depends(get_db)
+):
+    """Retrieve visual attack surface topology map (nodes and edges) for the audit."""
+    audit = db.query(AuditModel).filter(AuditModel.id == audit_id).first()
+    if not audit:
+        raise AuditNotFoundError(f"Audit with ID '{audit_id}' does not exist.")
+    if audit.session_id != session_id:
+        raise AuditForbiddenError("Access forbidden: audit belongs to another session.")
+
+    findings_raw = [
+        {
+            "id": f.id,
+            "rule_id": f.rule_id,
+            "title": f.title,
+            "description": f.description,
+            "severity": f.severity,
+            "priority": getattr(f, "priority", "P2"),
+            "category": f.category,
+            "file_path": f.file_path,
+        }
+        for f in audit.findings
+    ]
+    return AttackSurfaceGenerator.generate(
+        findings=findings_raw,
+        repo_name=audit.repository.github_repo if audit.repository else None
+    )
+
 
 
 @router.get("/{audit_id}/compare")

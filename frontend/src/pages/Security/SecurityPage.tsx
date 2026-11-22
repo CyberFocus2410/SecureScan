@@ -8,7 +8,11 @@ import {
   ChevronRight,
   Package,
   Sparkles,
-  Flame
+  Flame,
+  Layers,
+  Code2,
+  Briefcase,
+  Scale
 } from 'lucide-react';
 import {
   getFindings,
@@ -22,12 +26,16 @@ import {
   ControlResult,
   RiskIntelligenceData
 } from '../../types/contracts';
+import { RiskScorecardGauge } from '../../components/RiskScorecardGauge';
+import { AttackSurfaceMap } from '../../components/AttackSurfaceMap';
 
-type ActiveTab = 'summary' | 'findings' | 'good' | 'gaps' | 'chains' | 'api' | 'sbom';
+type ActiveTab = 'summary' | 'findings' | 'good' | 'gaps' | 'chains' | 'topology' | 'sbom';
+type AudienceLens = 'developer' | 'executive' | 'compliance';
 
 export const SecurityPage: React.FC = () => {
   const { auditId } = useParams<{ auditId: string }>();
   const [activeTab, setActiveTab] = useState<ActiveTab>('summary');
+  const [audienceLens, setAudienceLens] = useState<AudienceLens>('developer');
   const [findings, setFindings] = useState<Finding[]>([]);
   const [controls, setControls] = useState<ControlResult[]>([]);
   const [riskData, setRiskData] = useState<RiskIntelligenceData | null>(null);
@@ -92,10 +100,19 @@ export const SecurityPage: React.FC = () => {
     }
   };
 
+  const handleLensChange = (lens: AudienceLens) => {
+    setAudienceLens(lens);
+    if (lens === 'executive') {
+      setActiveTab('summary');
+    } else if (lens === 'developer') {
+      setActiveTab('findings');
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 sm:py-8">
       {/* Top Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-200 dark:border-slate-800">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 pb-4 border-b border-slate-200 dark:border-slate-800">
         <div>
           <div className="flex items-center gap-2.5">
             <img
@@ -126,6 +143,108 @@ export const SecurityPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Feature 4: Audience Lens Selector Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 p-2 bg-slate-100 dark:bg-slate-800/60 rounded-2xl border border-slate-200/80 dark:border-slate-700/60">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider pl-2 pr-1 shrink-0">
+            Audience Lens:
+          </span>
+          <button
+            onClick={() => handleLensChange('developer')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+              audienceLens === 'developer'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+            }`}
+          >
+            <Code2 className="w-3.5 h-3.5" />
+            <span>Developer Lens</span>
+          </button>
+          <button
+            onClick={() => handleLensChange('executive')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+              audienceLens === 'executive'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+            }`}
+          >
+            <Briefcase className="w-3.5 h-3.5" />
+            <span>Executive / CISO</span>
+          </button>
+          <button
+            onClick={() => handleLensChange('compliance')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+              audienceLens === 'compliance'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+            }`}
+          >
+            <Scale className="w-3.5 h-3.5" />
+            <span>Legal & DPDP</span>
+          </button>
+        </div>
+
+        <div className="text-[11px] text-slate-500 pr-2 hidden md:block">
+          {audienceLens === 'developer' && 'Optimized for technical code fixes, AST evidence & line-level triage.'}
+          {audienceLens === 'executive' && 'High-level posture rating, radial scores & compound risk traversal.'}
+          {audienceLens === 'compliance' && 'Statutory DPDP Act 2023 alignment & Section 33 penalty exposures.'}
+        </div>
+      </div>
+
+      {/* Audience Lens Contextual Banners */}
+      {audienceLens === 'executive' && (
+        <div className="p-4 bg-slate-900 text-white rounded-2xl mb-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 border border-slate-800">
+          <div>
+            <div className="flex items-center gap-2">
+              <Briefcase className="w-4 h-4 text-sky-400" />
+              <span className="font-bold text-xs uppercase tracking-wider text-sky-400">
+                Executive & CISO Briefing Mode
+              </span>
+            </div>
+            <p className="text-xs text-slate-300 mt-1">
+              Overall Security Posture: <strong className="text-white">{riskData?.scores?.overall_rating || 'Evaluating'}</strong> across 5 architectural domains with {attackChains.length} compound attack chain(s) identified.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setActiveTab('summary')}
+              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-xl text-xs font-semibold cursor-pointer transition"
+            >
+              Radial Posture Gauge
+            </button>
+            <button
+              onClick={() => setActiveTab('chains')}
+              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-xl text-xs font-semibold cursor-pointer transition"
+            >
+              Attack Chains
+            </button>
+          </div>
+        </div>
+      )}
+
+      {audienceLens === 'compliance' && (
+        <div className="p-4 bg-emerald-950/40 text-emerald-200 border border-emerald-800 rounded-2xl mb-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <Scale className="w-4 h-4 text-emerald-400" />
+              <span className="font-bold text-xs uppercase tracking-wider text-emerald-400">
+                Statutory Compliance & Legal Mode
+              </span>
+            </div>
+            <p className="text-xs text-emerald-300 mt-1">
+              Evaluating statutory readiness under the India Digital Personal Data Protection Act, 2023. Readiness Index:{' '}
+              <strong className="text-white font-mono">{riskData?.scores?.dpdp_readiness_score || 0} / 100</strong>.
+            </p>
+          </div>
+          <Link
+            to={`/audits/${auditId}/dpdp`}
+            className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold whitespace-nowrap shadow-xs text-center transition"
+          >
+            Open DPDP Readiness Matrix →
+          </Link>
+        </div>
+      )}
+
       {/* Navigation Tabs */}
       <div className="flex overflow-x-auto no-scrollbar gap-2 mb-6 pb-1 border-b border-slate-200 dark:border-slate-800 text-xs font-semibold">
         <button
@@ -150,6 +269,18 @@ export const SecurityPage: React.FC = () => {
         >
           <AlertOctagon className="w-3.5 h-3.5 text-red-500" />
           <span>What Needs Fixing ({findings.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('topology')}
+          className={`px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+            activeTab === 'topology'
+              ? 'bg-blue-600 text-white shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+          }`}
+        >
+          <Layers className="w-3.5 h-3.5 text-cyan-500" />
+          <span>Attack Surface Map</span>
         </button>
 
         <button
@@ -201,6 +332,7 @@ export const SecurityPage: React.FC = () => {
         </button>
       </div>
 
+
       {/* TAB 1: EXECUTIVE SUMMARY */}
       {activeTab === 'summary' && (
         <div className="space-y-6">
@@ -239,57 +371,9 @@ export const SecurityPage: React.FC = () => {
             </div>
           </div>
 
-          {/* 5 Secondary Scores Card */}
+          {/* Feature 3: Radial Multi-Arc Posture Gauge */}
           {riskData?.scores && (
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-                <div>
-                  <h2 className="text-base font-bold text-slate-900 dark:text-white">
-                    Multi-Dimensional Posture Scores (0–100)
-                  </h2>
-                  <p className="text-xs text-slate-500">Evaluated with Section 8(5) Hard Cap Enforcement</p>
-                </div>
-                {riskData.scores.hard_cap_applied && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-100 dark:bg-red-950/60 text-red-800 dark:text-red-300 border border-red-300 dark:border-red-800 rounded-lg text-xs font-bold">
-                    <AlertTriangle className="w-3.5 h-3.5" />
-                    Hard Cap Applied (Max 60 due to confirmed P0)
-                  </span>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl text-center">
-                  <p className="text-[11px] text-slate-500 font-medium">Security</p>
-                  <p className="text-xl font-extrabold text-slate-900 dark:text-white mt-0.5">
-                    {riskData.scores.security_score}/100
-                  </p>
-                </div>
-                <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl text-center">
-                  <p className="text-[11px] text-slate-500 font-medium">Privacy</p>
-                  <p className="text-xl font-extrabold text-slate-900 dark:text-white mt-0.5">
-                    {riskData.scores.privacy_score}/100
-                  </p>
-                </div>
-                <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl text-center">
-                  <p className="text-[11px] text-slate-500 font-medium">Infrastructure</p>
-                  <p className="text-xl font-extrabold text-slate-900 dark:text-white mt-0.5">
-                    {riskData.scores.infrastructure_score}/100
-                  </p>
-                </div>
-                <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl text-center">
-                  <p className="text-[11px] text-slate-500 font-medium">Supply Chain</p>
-                  <p className="text-xl font-extrabold text-slate-900 dark:text-white mt-0.5">
-                    {riskData.scores.supply_chain_score}/100
-                  </p>
-                </div>
-                <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl text-center">
-                  <p className="text-[11px] text-slate-500 font-medium">DPDP Readiness</p>
-                  <p className="text-xl font-extrabold text-slate-900 dark:text-white mt-0.5">
-                    {riskData.scores.dpdp_readiness_score}/100
-                  </p>
-                </div>
-              </div>
-            </div>
+            <RiskScorecardGauge scores={riskData.scores} />
           )}
 
           {/* Top 5 Things to Fix First */}
@@ -423,6 +507,11 @@ export const SecurityPage: React.FC = () => {
             )}
           </div>
         </div>
+      )}
+
+      {/* Feature 1: Attack Surface Topology Map */}
+      {activeTab === 'topology' && (
+        <AttackSurfaceMap data={riskData?.attack_surface} findings={findings} />
       )}
 
       {/* TAB 3: WHAT LOOKS GOOD ✅ */}

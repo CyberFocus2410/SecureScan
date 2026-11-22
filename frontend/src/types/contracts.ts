@@ -256,6 +256,30 @@ export interface AttackChain {
   remediation_strategy: string;
 }
 
+export interface AttackSurfaceNode {
+  id: string;
+  label: string;
+  type: 'root' | 'route' | 'api' | 'external' | 'database';
+  risk_level: 'high' | 'medium' | 'low' | 'safe';
+  details?: string;
+  findings_count?: number;
+}
+
+export interface AttackSurfaceEdge {
+  source: string;
+  target: string;
+}
+
+export interface AttackSurfaceData {
+  nodes: AttackSurfaceNode[];
+  edges: AttackSurfaceEdge[];
+  total_nodes?: number;
+  total_edges?: number;
+  high_risk_components?: number;
+  medium_risk_components?: number;
+  low_risk_components?: number;
+}
+
 export interface RiskIntelligenceData {
   audit_id: string;
   priority_counts: {
@@ -273,9 +297,11 @@ export interface RiskIntelligenceData {
   };
   scores: SecondaryScores;
   attack_chains: AttackChain[];
+  attack_surface?: AttackSurfaceData;
   findings_count: number;
   confirmed_exploitable_count: number;
 }
+
 
 export interface FindingComparison {
   id: string;
