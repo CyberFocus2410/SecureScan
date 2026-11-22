@@ -26,11 +26,22 @@ SAFE_BRANCH_REGEX = re.compile(
     r"^[a-zA-Z0-9_.-]+(?:/[a-zA-Z0-9_.-]+)*$"
 )
 
-# Common media and font asset extensions exempt from code file caps
+# Common media, font, image, ML model, and binary asset extensions exempt from code file caps
 MEDIA_ASSET_EXTENSIONS = {
+    # Video & Audio
     ".mp4", ".mov", ".avi", ".mkv", ".webm", ".flv", ".wmv",
     ".mp3", ".wav", ".ogg", ".flac", ".aac",
-    ".woff", ".woff2", ".ttf", ".eot", ".otf"
+    # Images & Icons
+    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".svg", ".tiff", ".bmp",
+    # Fonts
+    ".woff", ".woff2", ".ttf", ".eot", ".otf",
+    # AI / ML models & weights (ONNX, PyTorch, TF/Keras, Safetensors, etc.)
+    ".onnx", ".pt", ".pth", ".h5", ".hdf5", ".tflite", ".safetensors",
+    ".joblib", ".pkl", ".pickle", ".model", ".pb", ".weights", ".caffemodel",
+    # Scientific data, arrays & datasets
+    ".parquet", ".arrow", ".npy", ".npz", ".feather",
+    # Documents & Compressed Archives
+    ".pdf", ".zip", ".tar", ".gz", ".bz2", ".7z"
 }
 
 
@@ -280,10 +291,16 @@ def sanitize_and_enforce_caps(worktree_dir: Path) -> Dict[str, Any]:
                 max_single = limits.MAX_MEDIA_FILE_BYTES if is_media else limits.MAX_SINGLE_FILE_BYTES
 
                 if f_size > max_single:
-                    # Single file exceeds cap (e.g. giant binary)
-                    raise RepoTooLargeError(
-                        f"File '{f}' exceeds maximum single file size ({max_single} bytes)."
-                    )
+                    if is_media:
+                        # Non-code asset exceeds cap (e.g., massive video or oversized model weights).
+                        # Safely prune from worktree so SAST scanning proceeds on code without OOM crash.
+                        f_path.unlink()
+                        continue
+                    else:
+                        # Single code/unclassified file exceeds cap (e.g. giant binary / bomb)
+                        raise RepoTooLargeError(
+                            f"File '{f}' exceeds maximum single file size ({max_single} bytes)."
+                        )
                 total_bytes += f_size
             except (OSError, FileNotFoundError):
                 continue

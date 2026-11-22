@@ -8,7 +8,7 @@ class LimitSettings(BaseSettings):
     MAX_REPO_SIZE_BYTES: int = 150 * 1024 * 1024    # 150 MB
     MAX_FILE_COUNT: int = 2000                      # 2,000 files
     MAX_SINGLE_FILE_BYTES: int = 5 * 1024 * 1024    # 5 MB (for code/text files)
-    MAX_MEDIA_FILE_BYTES: int = 50 * 1024 * 1024    # 50 MB (for binary media/assets)
+    MAX_MEDIA_FILE_BYTES: int = 100 * 1024 * 1024  # 100 MB (for binary media/assets/ML models)
     CLONE_TIMEOUT_SECONDS: int = 120                # 120 seconds
     SCANNER_TOOL_TIMEOUT_SECONDS: int = 120         # 120 seconds per scanner container
 
