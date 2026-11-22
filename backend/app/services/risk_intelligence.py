@@ -35,6 +35,51 @@ class RiskIntelligenceEngine:
     """
 
     @classmethod
+    def classify_domain(cls, f: Dict[str, Any]) -> str:
+        """
+        Dynamically maps a finding to its architectural posture domain:
+        - supply_chain: dependency CVEs, SCA, outdated/vulnerable packages, lockfiles
+        - infrastructure: IaC, Dockerfile, Compose, Kubernetes, Terraform, cloud configs
+        - privacy: PII, PAN, Passport, Aadhaar, data exposure, tenant isolation, DPDP
+        - security: SAST, code injection, secrets, authentication/authorization, AI security
+        """
+        cat = str(f.get("category", "")).lower()
+        engine = str(f.get("engine", "") or f.get("scanner_name", "")).lower()
+        rule_id = str(f.get("rule_id", "")).lower()
+        file_path = str(f.get("file_path", "")).lower()
+        title = str(f.get("title", "")).lower()
+
+        # 1. Supply Chain
+        if (
+            cat in ("sca", "dependencies", "dependency", "supply_chain", "sbom")
+            or engine in ("osv-scanner", "osv", "sca", "sbom")
+            or any(k in rule_id for k in ("cve-", "osv-", "ghsa-", "npm-", "pypi-", "dependency"))
+            or any(file_path.endswith(p) for p in ("package.json", "package-lock.json", "requirements.txt", "yarn.lock", "pnpm-lock.yaml", "go.sum", "pom.xml", "cargo.lock", "gemfile.lock"))
+        ):
+            return "supply_chain"
+
+        # 2. Infrastructure & Cloud
+        if (
+            cat in ("iac", "container", "ci", "infrastructure", "cloud")
+            or engine in ("iac", "container", "ci", "iac_config", "cloud")
+            or any(k in rule_id for k in ("iac", "docker", "k8s", "kubernetes", "terraform", "container", "s3", "firestore", "cloud", "aws", "gcp", "azure"))
+            or any(k in file_path for k in ("dockerfile", "compose", "k8s", "kubernetes", ".tf", "terraform", "vercel.json", "netlify.toml", ".github/workflows", "firestore.rules"))
+        ):
+            return "infrastructure"
+
+        # 3. Privacy & Data Protection
+        if (
+            cat in ("privacy", "dpdp", "pii", "data_exposure")
+            or engine in ("privacy", "dpdp", "pii")
+            or any(k in rule_id for k in ("pii", "dpdp", "pan", "passport", "aadhaar", "ssn", "data_exposure", "plaintext-pii", "sensitive-field", "tenant-isolation"))
+            or any(k in title for k in ("pii", "pan", "passport", "aadhaar", "personal data", "sensitive field", "tenant/owner isolation"))
+        ):
+            return "privacy"
+
+        # 4. Core Security (SAST, Injection, Secrets, Auth, LLM, Crypto, etc.)
+        return "security"
+
+    @classmethod
     def evaluate(
         cls,
         findings: List[Dict[str, Any]],
@@ -64,9 +109,6 @@ class RiskIntelligenceEngine:
             if sev in severity_counts:
                 severity_counts[sev] += 1
 
-            cat = str(f.get("category", "sast")).lower()
-            engine = str(f.get("engine", "")).lower()
-
             # Weight penalty based on severity
             weight = 15 if sev == "CRITICAL" else (10 if sev == "HIGH" else (5 if sev == "MEDIUM" else 2))
 
@@ -76,15 +118,8 @@ class RiskIntelligenceEngine:
                 weight += 5
                 confirmed_exploitable += 1
 
-            # Map to scoring domain
-            if cat in ("iac", "container", "ci") or engine in ("iac", "container", "ci"):
-                category_penalties["infrastructure"] += weight
-            elif cat in ("sca", "dependencies") or engine in ("sca", "sbom"):
-                category_penalties["supply_chain"] += weight
-            elif cat in ("privacy", "dpdp", "pii") or engine in ("privacy", "dpdp"):
-                category_penalties["privacy"] += weight
-            else:
-                category_penalties["security"] += weight
+            domain = cls.classify_domain(f)
+            category_penalties[domain] += weight
 
         # Base scores (100 - penalties) clamped between 0 and 100
         sec_score = max(0, 100 - category_penalties["security"])

@@ -310,18 +310,28 @@ def run_tool_diagnostics() -> Dict[str, Any]:
     })
 
     # Sandbox environment diagnostics
-    sandbox_engine = get_sandbox_engine()
-    sandbox_info = {
-        "active_engine": sandbox_engine.name,
-        "environment": settings.ENVIRONMENT,
-        "fail_closed_enforced": settings.ENVIRONMENT.lower() == "production"
-    }
+    try:
+        sandbox_engine = get_sandbox_engine()
+        sandbox_info = {
+            "active_engine": sandbox_engine.name,
+            "environment": settings.ENVIRONMENT,
+            "fail_closed_enforced": settings.ENVIRONMENT.lower() == "production"
+        }
+    except Exception as err:
+        logger.warning("Sandbox engine check caught exception in tool doctor: %s", err)
+        sandbox_info = {
+            "active_engine": "none (fail-closed enforced)" if settings.ENVIRONMENT.lower() == "production" else "unavailable",
+            "environment": settings.ENVIRONMENT,
+            "fail_closed_enforced": settings.ENVIRONMENT.lower() == "production",
+            "details": str(err)
+        }
 
     # Summary
     all_operational = all(r["status"] in ("PASS", "FALLBACK_ACTIVE") for r in results)
+    is_healthy = all_operational and not sandbox_info["active_engine"].startswith(("none", "unavailable"))
 
     return {
-        "status": "HEALTHY" if all_operational else "DEGRADED",
+        "status": "HEALTHY" if is_healthy else "DEGRADED",
         "total_areas": len(results),
         "primary_count": sum(1 for r in results if r["status"] == "PASS"),
         "fallback_count": sum(1 for r in results if r["status"] == "FALLBACK_ACTIVE"),

@@ -72,8 +72,12 @@ export const ToolHealthPage: React.FC = () => {
             <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
               <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">Active Sandbox Engine</div>
               <div className="text-lg font-bold text-slate-900 dark:text-white mt-1 capitalize flex items-center gap-2">
-                <span>{data.sandbox.active_engine}</span>
-                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                <span className="truncate">{data.sandbox.active_engine}</span>
+                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                  data.sandbox.active_engine.toLowerCase().includes('none') || data.sandbox.active_engine.toLowerCase().includes('unavailable')
+                    ? 'bg-amber-500'
+                    : 'bg-emerald-500'
+                }`}></span>
               </div>
               <div className="text-xs text-slate-500 mt-1">
                 Env: <span className="font-mono">{data.sandbox.environment}</span> (Fail-Closed: {data.sandbox.fail_closed_enforced ? 'Yes' : 'No'})

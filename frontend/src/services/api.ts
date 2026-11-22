@@ -196,7 +196,9 @@ export interface ToolHealthResponse {
 }
 
 export async function fetchToolHealth(): Promise<ToolHealthResponse> {
-  const res = await fetch(`${BASE_URL}/admin/tools`);
+  const res = await fetch(`${BASE_URL}/admin/tools`, {
+    headers: getHeaders(),
+  });
   if (!res.ok) throw new Error('Tool diagnostics check failed');
   return res.json();
 }

@@ -225,12 +225,16 @@ def get_audit_risk_intelligence(
             "id": f.id,
             "rule_id": f.rule_id,
             "title": f.title,
+            "description": f.description,
             "severity": f.severity,
             "priority": getattr(f, "priority", None) or ("P0" if f.severity == "CRITICAL" else "P1" if f.severity == "HIGH" else "P2"),
             "confidence": f.confidence,
             "category": f.category,
+            "scanner_name": f.scanner_name,
+            "engine": f.scanner_name,
             "file_path": f.file_path,
             "start_line": f.start_line,
+            "verified_state": getattr(f, "verified_state", None) or "UNVERIFIED"
         }
         for f in audit.findings
     ]
@@ -371,8 +375,30 @@ def compare_audits(
             })
 
     # Scores comparison
-    base_raw = [{"rule_id": f.rule_id, "severity": f.severity, "priority": getattr(f, "priority", "P2")} for f in base_findings]
-    curr_raw = [{"rule_id": f.rule_id, "severity": f.severity, "priority": getattr(f, "priority", "P2")} for f in curr_findings]
+    base_raw = [
+        {
+            "rule_id": f.rule_id,
+            "title": f.title,
+            "severity": f.severity,
+            "priority": getattr(f, "priority", "P2"),
+            "category": f.category,
+            "scanner_name": f.scanner_name,
+            "file_path": f.file_path,
+        }
+        for f in base_findings
+    ]
+    curr_raw = [
+        {
+            "rule_id": f.rule_id,
+            "title": f.title,
+            "severity": f.severity,
+            "priority": getattr(f, "priority", "P2"),
+            "category": f.category,
+            "scanner_name": f.scanner_name,
+            "file_path": f.file_path,
+        }
+        for f in curr_findings
+    ]
     base_report = RiskIntelligenceEngine.evaluate(base_raw)
     curr_report = RiskIntelligenceEngine.evaluate(curr_raw)
 
