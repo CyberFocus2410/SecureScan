@@ -83,6 +83,14 @@ app.add_exception_handler(Exception, unhandled_exception_handler)
 app.include_router(api_v1_router, prefix=settings.API_V1_STR)
 
 
+@app.on_event("startup")
+def startup_event():
+    """Bootstrap primary security tools and verify environment readiness."""
+    import threading
+    from app.core.tools import ensure_tools_installed
+    threading.Thread(target=ensure_tools_installed, daemon=True).start()
+
+
 @app.get("/")
 def root():
     return {

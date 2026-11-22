@@ -17,6 +17,7 @@ from app.scanners.base import (
     ScannerExecutionResult
 )
 from app.scanners.runner import execute_sandboxed_command
+from app.core.tools import find_cli_tool
 
 
 class BanditAdapter(BaseScannerAdapter):
@@ -41,12 +42,13 @@ class BanditAdapter(BaseScannerAdapter):
         return {"report_file": worktree_dir / "bandit_report.json"}
 
     def execute(self, worktree_dir: Path, context: dict[str, Any]) -> ScannerExecutionResult:
-        has_cli = shutil.which("bandit") is not None
+        cli_bin = find_cli_tool("bandit")
+        has_cli = cli_bin is not None
         report_file = context.get("report_file") or (worktree_dir / "bandit_report.json")
 
         if has_cli:
             cmd = [
-                "bandit",
+                cli_bin,
                 "-r", str(worktree_dir),
                 "-f", "json",
                 "-o", str(report_file),

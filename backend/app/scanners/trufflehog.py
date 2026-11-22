@@ -19,6 +19,7 @@ from app.scanners.base import (
     ScannerExecutionResult
 )
 from app.scanners.runner import execute_sandboxed_command
+from app.core.tools import find_cli_tool
 
 
 ROTATION_GUIDANCE = {
@@ -107,12 +108,13 @@ class TruffleHogAdapter(BaseScannerAdapter):
     def execute(self, worktree_dir: Path, context: dict[str, Any]) -> ScannerExecutionResult:
         start_time = time.time()
         findings: list[RawFinding] = []
-        has_cli = shutil.which("trufflehog") is not None
+        cli_bin = find_cli_tool("trufflehog")
+        has_cli = cli_bin is not None
 
         if has_cli:
             report_path = context.get("report_path") or (worktree_dir / "trufflehog_report.json")
             cmd = [
-                "trufflehog",
+                cli_bin,
                 "filesystem",
                 str(worktree_dir),
                 "--json",

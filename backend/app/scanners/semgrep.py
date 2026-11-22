@@ -19,6 +19,7 @@ from app.scanners.base import (
     ScannerExecutionResult
 )
 from app.scanners.runner import execute_sandboxed_command
+from app.core.tools import find_cli_tool
 
 logger = logging.getLogger(__name__)
 
@@ -46,12 +47,13 @@ class SemgrepAdapter(BaseScannerAdapter):
         return {"output_file": worktree_dir / "semgrep_out.json"}
 
     def execute(self, worktree_dir: Path, context: dict[str, Any]) -> ScannerExecutionResult:
-        has_cli = shutil.which("semgrep") is not None
+        cli_bin = find_cli_tool("semgrep")
+        has_cli = cli_bin is not None
         out_file = context.get("output_file") or (worktree_dir / "semgrep_out.json")
 
         if has_cli:
             cmd = [
-                "semgrep",
+                cli_bin,
                 "scan",
                 "--config", "auto",
                 "--metrics=off",

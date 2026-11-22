@@ -18,6 +18,7 @@ from app.scanners.base import (
     ScannerExecutionResult
 )
 from app.scanners.runner import execute_sandboxed_command
+from app.core.tools import find_cli_tool
 
 logger = logging.getLogger(__name__)
 
@@ -76,10 +77,11 @@ class OsvScannerAdapter(BaseScannerAdapter):
             )
 
         cli_findings: list[RawFinding] = []
-        has_cli = shutil.which("osv-scanner") is not None
+        cli_bin = find_cli_tool("osv-scanner")
+        has_cli = cli_bin is not None
         if has_cli:
             try:
-                cmd = ["osv-scanner", "--format", "json", "-r", str(worktree_dir)]
+                cmd = [cli_bin, "--format", "json", "-r", str(worktree_dir)]
                 code, stdout, stderr, dur = execute_sandboxed_command(cmd, worktree_dir)
                 if stdout:
                     cli_findings = self._parse_osv_cli_output(stdout, worktree_dir)

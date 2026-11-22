@@ -35,6 +35,27 @@ def test_at19_giant_file_rejected(tmp_path: Path):
         cleanup_oversized(giant_dir)
 
 
+def test_ml_model_asset_pruned_without_error(tmp_path: Path):
+    """Ensure repositories with ML model assets (e.g. model.onnx) prune them safely without aborting."""
+    ml_repo = tmp_path / "ml_repo"
+    ml_repo.mkdir()
+    # Create valid code file
+    code_file = ml_repo / "main.py"
+    code_file.write_text("print('hello world')\n", encoding="utf-8")
+    # Create 6MB model.onnx file
+    model_file = ml_repo / "model.onnx"
+    chunk = b"X" * (1024 * 1024)
+    with open(model_file, "wb") as f:
+        for _ in range(6):
+            f.write(chunk)
+
+    # Sanitizer must succeed, prune the 6MB model, and keep code file intact!
+    stats = sanitize_and_enforce_caps(ml_repo)
+    assert not model_file.exists(), "model.onnx should be pruned to prevent SAST bloat"
+    assert code_file.exists(), "Code file main.py must remain intact"
+    assert stats["file_count"] >= 1
+
+
 def test_at19_malicious_symlink_neutralized(tmp_path: Path):
     """AT-19: Symlinks attempting to escape worktree root are detected and removed."""
     worktree = tmp_path / "safe_worktree"

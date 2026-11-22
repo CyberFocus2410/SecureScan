@@ -16,3 +16,8 @@ python-multipart==0.0.20
 pytest==8.3.4
 pytest-asyncio==0.25.2
 
+# Pinned Primary Security Scanner Tools (tools.lock, Section 5)
+bandit==1.8.0
+semgrep==1.102.0
+pip-audit==2.7.3
+checkov==3.2.355

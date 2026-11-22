@@ -17,6 +17,7 @@ from app.scanners.base import (
     ScannerExecutionResult
 )
 from app.scanners.runner import execute_sandboxed_command
+from app.core.tools import find_cli_tool
 
 
 class GitleaksAdapter(BaseScannerAdapter):
@@ -44,11 +45,12 @@ class GitleaksAdapter(BaseScannerAdapter):
 
     def execute(self, worktree_dir: Path, context: dict[str, Any]) -> ScannerExecutionResult:
         report_path = context.get("report_path") or (worktree_dir / "gitleaks_report.json")
-        has_gitleaks_cli = shutil.which("gitleaks") is not None
+        cli_bin = find_cli_tool("gitleaks")
+        has_gitleaks_cli = cli_bin is not None
 
         if has_gitleaks_cli:
             cmd = [
-                "gitleaks",
+                cli_bin,
                 "detect",
                 "--no-git",
                 "--source", str(worktree_dir),

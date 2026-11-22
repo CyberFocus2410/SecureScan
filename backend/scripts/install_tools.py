@@ -125,42 +125,75 @@ def install_linux_binaries(target_dir: Path, local_bin_dir: Path):
             continue
 
         print(f"--> Downloading {name} from {spec['url']}...")
-        try:
-            req = urllib.request.Request(spec["url"], headers=headers)
-            with urllib.request.urlopen(req, timeout=45) as resp:
-                data = resp.read()
+        downloaded = False
+        has_curl = shutil.which("curl") is not None
+        has_tar = shutil.which("tar") is not None
 
-            if spec["type"] == "direct":
-                with open(dest, "wb") as f:
-                    f.write(data)
-                os.chmod(dest, 0o755)
-            elif spec["type"] == "tar.gz":
-                with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tar:
-                    found = False
-                    bin_name = spec["bin_name"]
-                    for member in tar.getmembers():
-                        if member.name == bin_name or member.name.endswith("/" + bin_name):
-                            f_obj = tar.extractfile(member)
-                            if f_obj:
-                                with open(dest, "wb") as f_out:
-                                    f_out.write(f_obj.read())
-                                os.chmod(dest, 0o755)
-                                found = True
-                                break
-                    if not found:
-                        print(f"    ! Warning: binary '{bin_name}' not found inside archive.")
-                        continue
+        # Try fast curl first on Linux
+        if has_curl:
+            try:
+                if spec["type"] == "direct":
+                    curl_cmd = ["curl", "-sSL", "--connect-timeout", "10", "--max-time", "45", "-o", str(dest), spec["url"]]
+                    res = subprocess.run(curl_cmd, capture_output=True, timeout=50)
+                    if res.returncode == 0 and dest.is_file() and dest.stat().st_size > 1000:
+                        os.chmod(dest, 0o755)
+                        downloaded = True
+                elif spec["type"] == "tar.gz" and has_tar:
+                    tmp_archive = target_dir / f"{name}_temp.tar.gz"
+                    curl_cmd = ["curl", "-sSL", "--connect-timeout", "10", "--max-time", "45", "-o", str(tmp_archive), spec["url"]]
+                    res = subprocess.run(curl_cmd, capture_output=True, timeout=50)
+                    if res.returncode == 0 and tmp_archive.is_file():
+                        tar_cmd = ["tar", "-xzf", str(tmp_archive), "-C", str(target_dir), spec["bin_name"]]
+                        t_res = subprocess.run(tar_cmd, capture_output=True, timeout=20)
+                        if t_res.returncode == 0 and dest.is_file():
+                            os.chmod(dest, 0o755)
+                            downloaded = True
+                    if tmp_archive.exists():
+                        tmp_archive.unlink()
+            except Exception as exc:
+                print(f"    ! curl attempt for {name} failed: {exc}")
 
+        if not downloaded:
+            try:
+                req = urllib.request.Request(spec["url"], headers=headers)
+                with urllib.request.urlopen(req, timeout=45) as resp:
+                    data = resp.read()
+
+                if spec["type"] == "direct":
+                    with open(dest, "wb") as f:
+                        f.write(data)
+                    os.chmod(dest, 0o755)
+                    downloaded = True
+                elif spec["type"] == "tar.gz":
+                    with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tar:
+                        found = False
+                        bin_name = spec["bin_name"]
+                        for member in tar.getmembers():
+                            if member.name == bin_name or member.name.endswith("/" + bin_name):
+                                f_obj = tar.extractfile(member)
+                                if f_obj:
+                                    with open(dest, "wb") as f_out:
+                                        f_out.write(f_obj.read())
+                                    os.chmod(dest, 0o755)
+                                    found = True
+                                    downloaded = True
+                                    break
+                        if not found:
+                            print(f"    ! Warning: binary '{bin_name}' not found inside archive.")
+                            continue
+            except Exception as exc:
+                print(f"    ! Warning: failed downloading {name}: {exc}")
+
+        if downloaded and dest.is_file():
             # Copy to user local bin as well
             try:
                 shutil.copy2(dest, local_dest)
                 os.chmod(local_dest, 0o755)
             except Exception:
                 pass
-
             print(f"    ✓ {name} successfully installed ({dest.stat().st_size} bytes).")
-        except Exception as exc:
-            print(f"    ! Warning: failed downloading {name}: {exc}")
+        else:
+            print(f"    ! Failed to install {name}.")
 
 
 def install_npm_tools():
