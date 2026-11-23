@@ -89,6 +89,7 @@ def start_audit(
         id=audit_id,
         repository_id=repo.id,
         session_id=session_id,
+        target_id=payload.target_id,
         commit_sha=payload.commit_sha,
         scopes=scopes,
         status="QUEUED",

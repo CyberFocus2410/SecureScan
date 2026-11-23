@@ -288,7 +288,19 @@ def sanitize_and_enforce_caps(worktree_dir: Path) -> Dict[str, Any]:
             try:
                 f_size = f_path.stat().st_size
                 is_media = f_path.suffix.lower() in MEDIA_ASSET_EXTENSIONS
+                max_single = limits.MAX_MEDIA_FILE_BYTES if is_media else limits.MAX_SINGLE_FILE_BYTES
 
+                if f_size > max_single:
+                    if is_media:
+                        # Non-code asset exceeds cap (e.g., massive video or oversized model weights).
+                        # Safely prune from worktree so SAST scanning proceeds on code without OOM crash.
+                        f_path.unlink()
+                        continue
+                    else:
+                        # Single code/unclassified file exceeds cap (e.g. giant binary / bomb)
+                        raise RepoTooLargeError(
+                            f"File '{f}' exceeds maximum single file size ({max_single} bytes)."
+                        )
                 if is_media and f_size > limits.MAX_SINGLE_FILE_BYTES:
                     # Non-code asset (e.g. ML model weights like model.onnx, video, large datasets).
                     # Safely prune from worktree so SAST scanning proceeds on code without OOM crash.

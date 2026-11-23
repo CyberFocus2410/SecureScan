@@ -125,10 +125,34 @@ def install_linux_binaries(target_dir: Path, local_bin_dir: Path):
             continue
 
         print(f"--> Downloading {name} from {spec['url']}...")
+        try:
+            req = urllib.request.Request(spec["url"], headers=headers)
+            with urllib.request.urlopen(req, timeout=45) as resp:
+                data = resp.read()
         downloaded = False
         has_curl = shutil.which("curl") is not None
         has_tar = shutil.which("tar") is not None
 
+            if spec["type"] == "direct":
+                with open(dest, "wb") as f:
+                    f.write(data)
+                os.chmod(dest, 0o755)
+            elif spec["type"] == "tar.gz":
+                with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tar:
+                    found = False
+                    bin_name = spec["bin_name"]
+                    for member in tar.getmembers():
+                        if member.name == bin_name or member.name.endswith("/" + bin_name):
+                            f_obj = tar.extractfile(member)
+                            if f_obj:
+                                with open(dest, "wb") as f_out:
+                                    f_out.write(f_obj.read())
+                                os.chmod(dest, 0o755)
+                                found = True
+                                break
+                    if not found:
+                        print(f"    ! Warning: binary '{bin_name}' not found inside archive.")
+                        continue
         # Try fast curl first on Linux
         if has_curl:
             try:
@@ -191,7 +215,10 @@ def install_linux_binaries(target_dir: Path, local_bin_dir: Path):
                 os.chmod(local_dest, 0o755)
             except Exception:
                 pass
+
             print(f"    ✓ {name} successfully installed ({dest.stat().st_size} bytes).")
+        except Exception as exc:
+            print(f"    ! Warning: failed downloading {name}: {exc}")
         else:
             print(f"    ! Failed to install {name}.")
 

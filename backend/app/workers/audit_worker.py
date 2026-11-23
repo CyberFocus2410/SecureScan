@@ -270,6 +270,78 @@ def execute_scan_pipeline(audit_id: str, worktree_dir: Path | None = None) -> No
                     message=f"{tool_identifier} skipped: unsupported languages"
                 )
 
+        # 2b. DAST Runtime Scanning Stage (if DAST in scopes or target_id is associated)
+        scope_set = {str(s).upper() for s in (audit.scopes or [])}
+        if "DAST" in scope_set or audit.target_id:
+            try:
+                from app.models.models import TargetModel
+                target_obj = None
+                if audit.target_id:
+                    target_obj = db.query(TargetModel).filter(TargetModel.id == audit.target_id).first()
+                if not target_obj and audit.session_id:
+                    target_obj = db.query(TargetModel).filter(
+                        TargetModel.session_id == audit.session_id,
+                        TargetModel.verified == True
+                    ).order_by(TargetModel.created_at.desc()).first()
+
+                if target_obj and target_obj.url:
+                    log_audit_event(
+                        db,
+                        audit_id=audit_id,
+                        stage="SCANNING",
+                        state="IN_PROGRESS",
+                        message=f"Starting DAST runtime crawler & security checks against {target_obj.url}"
+                    )
+                    from app.dast.pipeline import DastPipeline
+                    dast_res = DastPipeline.run_scan(
+                        target_url=target_obj.url,
+                        rate_limit=10,
+                        max_crawl_depth=3
+                    )
+                    if dast_res and dast_res.findings:
+                        from app.scanners.base import RawFinding, ScannerExecutionResult
+                        from app.schemas.enums import ScannerName, Severity, Confidence
+                        dast_raw: list[RawFinding] = []
+                        for df in dast_res.findings:
+                            dast_raw.append(RawFinding(
+                                rule_id=df.rule_id,
+                                title=df.title,
+                                description=df.description,
+                                category=getattr(df, "category", "dast"),
+                                severity=df.severity,
+                                confidence=getattr(df, "confidence", Confidence.CONFIRMED),
+                                file_path=getattr(df, "evidence_url", target_obj.url),
+                                start_line=1,
+                                end_line=1,
+                                raw_snippet=getattr(df, "technical_fix", ""),
+                                cwe_ids=getattr(df, "cwe_ids", []),
+                                owasp_refs=getattr(df, "owasp_refs", []),
+                                technical_fix=getattr(df, "technical_fix", "Apply recommended security headers / TLS patches."),
+                                validation_steps=getattr(df, "validation_steps", "Rescan endpoint with DAST.")
+                            ))
+                        scanner_results.append(ScannerExecutionResult(
+                            scanner=ScannerName.CUSTOM,
+                            version="2.0.0",
+                            status="COMPLETED",
+                            duration_ms=dast_res.duration_ms,
+                            raw_findings=dast_raw
+                        ))
+                    log_audit_event(
+                        db,
+                        audit_id=audit_id,
+                        stage="SCANNING",
+                        state="DONE",
+                        message=f"DAST completed: {len(dast_res.findings) if dast_res else 0} runtime findings verified on {target_obj.url}"
+                    )
+            except Exception as dast_err:
+                log_audit_event(
+                    db,
+                    audit_id=audit_id,
+                    stage="SCANNING",
+                    state="FAILED",
+                    message=f"DAST execution error: {str(dast_err)}"
+                )
+
         # 3. NORMALIZING Stage
         log_audit_event(
             db,

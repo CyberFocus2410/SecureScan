@@ -47,7 +47,7 @@ class SemgrepAdapter(BaseScannerAdapter):
         return {"output_file": worktree_dir / "semgrep_out.json"}
 
     def execute(self, worktree_dir: Path, context: dict[str, Any]) -> ScannerExecutionResult:
-        cli_bin = find_cli_tool("semgrep")
+        cli_bin = find_cli_tool("semgrep") or ("semgrep" if shutil.which("semgrep") else None)
         has_cli = cli_bin is not None
         out_file = context.get("output_file") or (worktree_dir / "semgrep_out.json")
 

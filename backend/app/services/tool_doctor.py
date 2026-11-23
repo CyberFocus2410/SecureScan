@@ -16,6 +16,37 @@ from app.sandbox import get_sandbox_engine
 logger = logging.getLogger(__name__)
 
 
+def check_cli_tool(binary_name: str, version_arg: str = "--version") -> tuple[bool, str | None]:
+    """Check whether a binary is available on PATH or in local .bin and return its version."""
+    path = shutil.which(binary_name)
+    if not path:
+        extra_candidates = [
+            Path(__file__).resolve().parent.parent.parent / ".bin" / binary_name,
+            Path.home() / ".local" / "bin" / binary_name,
+            Path("/usr/local/bin") / binary_name,
+            Path("/usr/bin") / binary_name,
+        ]
+        for candidate in extra_candidates:
+            if candidate.is_file() and os.access(candidate, os.X_OK):
+                path = str(candidate)
+                break
+    if not path:
+        return False, None
+    try:
+        proc = subprocess.run(
+            [path, version_arg],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=3
+        )
+        output = (proc.stdout or proc.stderr or "").strip()
+        version_line = output.splitlines()[0] if output else "installed"
+        return True, version_line[:60]
+    except Exception:
+        return True, "installed"
+
+
 def run_tool_diagnostics() -> Dict[str, Any]:
     """
     Execute self-tests for all 10 tool areas defined in Section 5 of prompt2_0.md.
@@ -43,14 +74,14 @@ def run_tool_diagnostics() -> Dict[str, Any]:
     results: List[Dict[str, Any]] = []
 
     # 1. SAST (Multi-language)
+    semgrep_ok, semgrep_ver = check_cli_tool("semgrep")
+    bandit_ok, bandit_ver = check_cli_tool("bandit")
     try:
-        semgrep_ok, semgrep_ver = check_cli_tool("semgrep")
         if semgrep_ok:
             status = "PASS"
             active = "PRIMARY (Semgrep)"
             details = f"Semgrep operational: {semgrep_ver}"
         else:
-            bandit_ok, _ = check_cli_tool("bandit")
             findings_count = 0
             if py_fixture.exists():
                 from app.scanners.semgrep import SemgrepAdapter
@@ -80,8 +111,8 @@ def run_tool_diagnostics() -> Dict[str, Any]:
     })
 
     # 2. Deep SAST (Taint Analysis)
+    codeql_ok, codeql_ver = check_cli_tool("codeql")
     try:
-        codeql_ok, codeql_ver = check_cli_tool("codeql")
         if codeql_ok:
             status = "PASS"
             active = "PRIMARY (CodeQL)"
@@ -113,9 +144,9 @@ def run_tool_diagnostics() -> Dict[str, Any]:
     })
 
     # 3. Secrets (Current Files)
+    gitleaks_ok, gitleaks_ver = check_cli_tool("gitleaks", "version")
+    trufflehog_ok, trufflehog_ver = check_cli_tool("trufflehog", "--version")
     try:
-        gitleaks_ok, gitleaks_ver = check_cli_tool("gitleaks", "version")
-        trufflehog_ok, trufflehog_ver = check_cli_tool("trufflehog", "--version")
         if gitleaks_ok:
             status = "PASS"
             active = "PRIMARY (Gitleaks)"
@@ -166,10 +197,10 @@ def run_tool_diagnostics() -> Dict[str, Any]:
     })
 
     # 5. Dependencies / SCA
+    osv_ok, osv_ver = check_cli_tool("osv-scanner")
+    pip_audit_ok, pip_audit_ver = check_cli_tool("pip-audit")
+    trivy_ok, trivy_ver = check_cli_tool("trivy")
     try:
-        osv_ok, osv_ver = check_cli_tool("osv-scanner")
-        pip_audit_ok, pip_audit_ver = check_cli_tool("pip-audit")
-        trivy_ok, trivy_ver = check_cli_tool("trivy")
         if osv_ok or pip_audit_ok or trivy_ok:
             status = "PASS"
             primary_name = "OSV-Scanner" if osv_ok else ("pip-audit" if pip_audit_ok else "Trivy")
@@ -200,8 +231,8 @@ def run_tool_diagnostics() -> Dict[str, Any]:
     })
 
     # 6. SBOM (Software Bill of Materials)
+    syft_ok, syft_ver = check_cli_tool("syft", "version")
     try:
-        syft_ok, syft_ver = check_cli_tool("syft", "version")
         if syft_ok:
             status = "PASS"
             active = "PRIMARY (Syft)"
@@ -229,8 +260,8 @@ def run_tool_diagnostics() -> Dict[str, Any]:
     })
 
     # 7. Container / Dockerfile
+    hadolint_ok, hadolint_ver = check_cli_tool("hadolint")
     try:
-        hadolint_ok, hadolint_ver = check_cli_tool("hadolint")
         if hadolint_ok or trivy_ok:
             status = "PASS"
             active = f"PRIMARY ({'Hadolint' if hadolint_ok else 'Trivy Config'})"
@@ -258,8 +289,8 @@ def run_tool_diagnostics() -> Dict[str, Any]:
     })
 
     # 8. Infrastructure as Code (IaC)
+    checkov_ok, checkov_ver = check_cli_tool("checkov")
     try:
-        checkov_ok, checkov_ver = check_cli_tool("checkov")
         if checkov_ok:
             status = "PASS"
             active = "PRIMARY (Checkov)"
@@ -287,9 +318,9 @@ def run_tool_diagnostics() -> Dict[str, Any]:
     })
 
     # 9. GitHub Actions Workflows
+    zizmor_ok, zizmor_ver = check_cli_tool("zizmor")
+    actionlint_ok, actionlint_ver = check_cli_tool("actionlint")
     try:
-        zizmor_ok, zizmor_ver = check_cli_tool("zizmor")
-        actionlint_ok, actionlint_ver = check_cli_tool("actionlint")
         if zizmor_ok or actionlint_ok:
             status = "PASS"
             active = f"PRIMARY ({'zizmor' if zizmor_ok else 'actionlint'})"
@@ -318,8 +349,8 @@ def run_tool_diagnostics() -> Dict[str, Any]:
     })
 
     # 10. Frontend JS Libraries
+    retire_ok, retire_ver = check_cli_tool("retire")
     try:
-        retire_ok, retire_ver = check_cli_tool("retire")
         if retire_ok:
             status = "PASS"
             active = "PRIMARY (Retire.js)"

@@ -29,6 +29,7 @@ class AuditCreate(BaseModel):
     repository_id: UUID
     scopes: list[AuditScope] = [AuditScope.SECURITY, AuditScope.DPDP]
     commit_sha: str | None = None
+    target_id: str | None = None
 
     model_config = ConfigDict(extra="forbid")
 

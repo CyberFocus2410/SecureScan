@@ -45,7 +45,7 @@ class GitleaksAdapter(BaseScannerAdapter):
 
     def execute(self, worktree_dir: Path, context: dict[str, Any]) -> ScannerExecutionResult:
         report_path = context.get("report_path") or (worktree_dir / "gitleaks_report.json")
-        cli_bin = find_cli_tool("gitleaks")
+        cli_bin = find_cli_tool("gitleaks") or ("gitleaks" if shutil.which("gitleaks") else None)
         has_gitleaks_cli = cli_bin is not None
 
         if has_gitleaks_cli:

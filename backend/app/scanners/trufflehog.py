@@ -108,7 +108,7 @@ class TruffleHogAdapter(BaseScannerAdapter):
     def execute(self, worktree_dir: Path, context: dict[str, Any]) -> ScannerExecutionResult:
         start_time = time.time()
         findings: list[RawFinding] = []
-        cli_bin = find_cli_tool("trufflehog")
+        cli_bin = find_cli_tool("trufflehog") or ("trufflehog" if shutil.which("trufflehog") else None)
         has_cli = cli_bin is not None
 
         if has_cli:

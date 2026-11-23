@@ -66,12 +66,22 @@ export async function submitRepository(githubUrl: string, branch = 'main'): Prom
   return res.json();
 }
 
-export async function startAudit(repositoryId: string, scopes = ['SECURITY', 'DPDP']): Promise<{ audit_id: string; status: string }> {
+export async function startAudit(
+  repositoryId: string,
+  scopes = ['SECURITY', 'DPDP'],
+  commitSha?: string,
+  targetId?: string
+): Promise<{ audit_id: string; status: string }> {
   if (USE_MOCK) return { audit_id: mockData.mockAudit.id, status: 'QUEUED' };
   const res = await fetch(`${BASE_URL}/audits`, {
     method: 'POST',
     headers: getHeaders(),
-    body: JSON.stringify({ repository_id: repositoryId, scopes })
+    body: JSON.stringify({
+      repository_id: repositoryId,
+      scopes,
+      commit_sha: commitSha,
+      target_id: targetId
+    })
   });
   if (!res.ok) throw new Error('Failed to start audit');
   return res.json();

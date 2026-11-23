@@ -42,7 +42,7 @@ class BanditAdapter(BaseScannerAdapter):
         return {"report_file": worktree_dir / "bandit_report.json"}
 
     def execute(self, worktree_dir: Path, context: dict[str, Any]) -> ScannerExecutionResult:
-        cli_bin = find_cli_tool("bandit")
+        cli_bin = find_cli_tool("bandit") or "bandit" if shutil.which("bandit") else None
         has_cli = cli_bin is not None
         report_file = context.get("report_file") or (worktree_dir / "bandit_report.json")
 
