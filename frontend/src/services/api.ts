@@ -66,6 +66,47 @@ export async function submitRepository(githubUrl: string, branch = 'main'): Prom
   return res.json();
 }
 
+export async function uploadRepositoryArchive(file: File, projectName?: string): Promise<Repository> {
+  if (USE_MOCK) return mockData.mockRepository;
+  const formData = new FormData();
+  formData.append('file', file);
+  if (projectName) formData.append('project_name', projectName);
+
+  const res = await fetch(`${BASE_URL}/repositories/upload`, {
+    method: 'POST',
+    headers: { 'X-Session-ID': getSessionId() },
+    body: formData
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || err.detail || 'Failed to upload repository archive');
+  }
+  return res.json();
+}
+
+export async function uploadRepositoryFolder(files: File[], projectName?: string): Promise<Repository> {
+  if (USE_MOCK) return mockData.mockRepository;
+  const formData = new FormData();
+  if (projectName) formData.append('project_name', projectName);
+
+  for (const file of files) {
+    const relPath = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
+    formData.append('files', file);
+    formData.append('relative_paths', relPath);
+  }
+
+  const res = await fetch(`${BASE_URL}/repositories/upload`, {
+    method: 'POST',
+    headers: { 'X-Session-ID': getSessionId() },
+    body: formData
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || err.detail || 'Failed to upload repository folder');
+  }
+  return res.json();
+}
+
 export async function startAudit(
   repositoryId: string,
   scopes = ['SECURITY', 'DPDP'],

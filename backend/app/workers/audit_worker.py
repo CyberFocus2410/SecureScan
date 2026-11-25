@@ -1,5 +1,6 @@
 """Background audit worker and pipeline state machine orchestrator."""
 import os
+import shutil
 from datetime import datetime, date, timedelta
 from pathlib import Path
 from sqlalchemy.orm import Session
@@ -129,24 +130,38 @@ def execute_scan_pipeline(audit_id: str, worktree_dir: Path | None = None) -> No
         audit.current_stage = "IMPORTING"
         db.commit()
 
+        is_uploaded = repo.canonical_url.startswith("upload://")
         log_audit_event(
             db,
             audit_id=audit_id,
             stage="IMPORTING",
             state="IN_PROGRESS",
-            message=f"Starting safe clone of {repo.canonical_url}"
+            message=(
+                f"Loading uploaded repository '{repo.github_repo}'"
+                if is_uploaded
+                else f"Starting safe clone of {repo.canonical_url}"
+            )
         )
 
         target_dir = worktree_dir or (settings.WORKTREE_STORAGE_DIR / str(audit_id))
 
-        # Check if local fixture or clone remote
+        # Check if local fixture, uploaded archive, or clone remote
         if not target_dir.exists():
-            resolved_sha = clone_shallow_worktree(
-                canonical_url=repo.canonical_url,
-                target_dir=target_dir,
-                branch=repo.default_branch,
-                commit_sha=audit.commit_sha
-            )
+            if is_uploaded:
+                staged_upload_dir = settings.WORKTREE_STORAGE_DIR / "uploads" / str(repo.id)
+                if not staged_upload_dir.exists():
+                    raise RuntimeError(
+                        "Uploaded repository files are no longer available on disk. Please re-upload the repository."
+                    )
+                shutil.copytree(staged_upload_dir, target_dir)
+                resolved_sha = repo.last_commit_sha or audit.commit_sha or ("0" * 40)
+            else:
+                resolved_sha = clone_shallow_worktree(
+                    canonical_url=repo.canonical_url,
+                    target_dir=target_dir,
+                    branch=repo.default_branch,
+                    commit_sha=audit.commit_sha
+                )
         else:
             resolved_sha = audit.commit_sha or repo.last_commit_sha or "a1b2c3d4e5f60718293a4b5c6d7e8f9a0b1c2d3e"
 

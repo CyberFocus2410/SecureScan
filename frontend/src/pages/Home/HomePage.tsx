@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Shield,
@@ -12,10 +12,16 @@ import {
   Check,
   CheckCircle2,
   Sliders,
-  Server
+  Server,
+  Upload,
+  FolderUp,
+  FileArchive,
+  X
 } from 'lucide-react';
 import {
   submitRepository,
+  uploadRepositoryArchive,
+  uploadRepositoryFolder,
   startAudit,
   createTarget,
   requestVerificationChallenge,
@@ -26,17 +32,39 @@ import {
 import { Target, TargetVerification } from '../../types/contracts';
 
 type ScanMode = 'REPO' | 'WEBSITE' | 'BOTH';
+type RepoSource = 'GITHUB' | 'UPLOAD';
 type Intensity = 'QUICK' | 'STANDARD' | 'DEEP';
+
+const IGNORED_FOLDER_SEGMENTS = new Set([
+  '.git',
+  'node_modules',
+  '.venv',
+  'venv',
+  '__pycache__',
+  '.pytest_cache',
+  '.next',
+  'dist',
+  'build',
+]);
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
 
   // Mode & Parameters
   const [mode, setMode] = useState<ScanMode>('REPO');
+  const [repoSource, setRepoSource] = useState<RepoSource>('GITHUB');
   const [intensity, setIntensity] = useState<Intensity>('STANDARD');
   const [repoUrl, setRepoUrl] = useState('');
   const [branch, setBranch] = useState('main');
   const [websiteUrl, setWebsiteUrl] = useState('');
+
+  // Local Repository Upload State
+  const [uploadedZip, setUploadedZip] = useState<File | null>(null);
+  const [uploadedFolderFiles, setUploadedFolderFiles] = useState<File[]>([]);
+  const [uploadedFolderName, setUploadedFolderName] = useState('');
+  const [isDragging, setIsDragging] = useState(false);
+  const zipInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
 
   // Target Ownership State
   const [activeTarget, setActiveTarget] = useState<Target | null>(null);
@@ -102,9 +130,16 @@ export const HomePage: React.FC = () => {
     setError(null);
 
     if (mode === 'REPO' || mode === 'BOTH') {
-      if (!repoUrl.startsWith('https://github.com/')) {
-        setError('Only public https://github.com/{owner}/{repo} URLs are supported for repository audits.');
-        return;
+      if (repoSource === 'GITHUB') {
+        if (!repoUrl.startsWith('https://github.com/')) {
+          setError('Only public https://github.com/{owner}/{repo} URLs are supported for GitHub imports.');
+          return;
+        }
+      } else {
+        if (!uploadedZip && uploadedFolderFiles.length === 0) {
+          setError('Please upload a repository .zip archive or select a local repository folder.');
+          return;
+        }
       }
     }
 
@@ -174,6 +209,11 @@ export const HomePage: React.FC = () => {
         // Create surrogate repository record for web target
         const repo = await submitRepository('https://github.com/CyberFocus2410/SecureScan', 'main');
         repoId = repo.id;
+      } else if (repoSource === 'UPLOAD') {
+        const repo = uploadedZip
+          ? await uploadRepositoryArchive(uploadedZip)
+          : await uploadRepositoryFolder(uploadedFolderFiles, uploadedFolderName || undefined);
+        repoId = repo.id;
       } else {
         const repo = await submitRepository(repoUrl, branch);
         repoId = repo.id;
@@ -193,6 +233,61 @@ export const HomePage: React.FC = () => {
     navigator.clipboard.writeText(text);
     setCopiedToken(true);
     setTimeout(() => setCopiedToken(false), 2000);
+  };
+
+  const handleZipSelect = (file: File | null | undefined) => {
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.zip')) {
+      setError('Please select a valid .zip repository archive.');
+      return;
+    }
+    setError(null);
+    setUploadedZip(file);
+    setUploadedFolderFiles([]);
+    setUploadedFolderName('');
+  };
+
+  const handleFolderSelect = (fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0) return;
+    const filtered: File[] = [];
+    let rootName = '';
+
+    for (let i = 0; i < fileList.length; i++) {
+      const f = fileList[i];
+      const rel = (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name;
+      const parts = rel.split('/');
+      if (!rootName && parts.length > 1) {
+        rootName = parts[0];
+      }
+      const skip = parts.slice(0, -1).some((seg) => IGNORED_FOLDER_SEGMENTS.has(seg.toLowerCase()));
+      if (!skip) {
+        filtered.push(f);
+      }
+    }
+
+    if (filtered.length === 0) {
+      setError('Selected folder has no scannable source files.');
+      return;
+    }
+
+    setError(null);
+    setUploadedZip(null);
+    setUploadedFolderFiles(filtered);
+    setUploadedFolderName(rootName || 'uploaded-folder');
+  };
+
+  const clearUpload = () => {
+    setUploadedZip(null);
+    setUploadedFolderFiles([]);
+    setUploadedFolderName('');
+    if (zipInputRef.current) zipInputRef.current.value = '';
+    if (folderInputRef.current) folderInputRef.current.value = '';
+  };
+
+  const formatBytes = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
   };
 
   return (
@@ -240,8 +335,8 @@ export const HomePage: React.FC = () => {
             >
               <GitBranch className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
               <div>
-                <p className="text-xs font-bold">GitHub Repository</p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">SAST, Secrets, SCA, IaC, DB & DPDP</p>
+                <p className="text-xs font-bold">Code Repository</p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">GitHub URL or Local Upload (.zip / Folder)</p>
               </div>
             </button>
 
@@ -283,48 +378,202 @@ export const HomePage: React.FC = () => {
           {/* Repository Section */}
           {(mode === 'REPO' || mode === 'BOTH') && (
             <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold mb-1 text-slate-800 dark:text-slate-200">
-                  GitHub Repository URL
+              {/* Source Switcher: GitHub URL vs Local Upload */}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Repository Source
                 </label>
-                <input
-                  type="text"
-                  value={repoUrl}
-                  onChange={(e) => setRepoUrl(e.target.value)}
-                  placeholder="https://github.com/owner/repository"
-                  className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-mono text-xs focus:ring-2 focus:ring-blue-500 outline-none"
-                  required={mode === 'REPO' || mode === 'BOTH'}
-                />
+                <div className="inline-flex rounded-lg bg-white dark:bg-slate-900 p-0.5 border border-slate-200 dark:border-slate-700">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRepoSource('GITHUB');
+                      setError(null);
+                    }}
+                    className={`px-3 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
+                      repoSource === 'GITHUB'
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <GitBranch className="w-3.5 h-3.5" />
+                    <span>GitHub URL</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRepoSource('UPLOAD');
+                      setError(null);
+                    }}
+                    className={`px-3 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
+                      repoSource === 'UPLOAD'
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Upload Repo (.zip / Folder)</span>
+                  </button>
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold mb-1 text-slate-800 dark:text-slate-200">
-                    Branch (Optional)
-                  </label>
+              {repoSource === 'GITHUB' ? (
+                <>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1 text-slate-800 dark:text-slate-200">
+                      GitHub Repository URL
+                    </label>
+                    <input
+                      type="text"
+                      value={repoUrl}
+                      onChange={(e) => setRepoUrl(e.target.value)}
+                      placeholder="https://github.com/owner/repository"
+                      className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-mono text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                      required={(mode === 'REPO' || mode === 'BOTH') && repoSource === 'GITHUB'}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold mb-1 text-slate-800 dark:text-slate-200">
+                        Branch (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={branch}
+                        onChange={(e) => setBranch(e.target.value)}
+                        placeholder="main"
+                        className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-mono text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold mb-1 text-slate-800 dark:text-slate-200">
+                        Scan Intensity
+                      </label>
+                      <select
+                        value={intensity}
+                        onChange={(e) => setIntensity(e.target.value as Intensity)}
+                        className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                      >
+                        <option value="QUICK">Quick (Fast SAST + Secrets only)</option>
+                        <option value="STANDARD">Standard (Full SAST, SCA, IaC, DB, AI, DPDP)</option>
+                        <option value="DEEP">Deep (Includes DAST & API Discovery)</option>
+                      </select>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-3">
+                  {/* Hidden file & folder inputs */}
                   <input
-                    type="text"
-                    value={branch}
-                    onChange={(e) => setBranch(e.target.value)}
-                    placeholder="main"
-                    className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-mono text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                    ref={zipInputRef}
+                    type="file"
+                    accept=".zip,application/zip,application/x-zip-compressed"
+                    className="hidden"
+                    onChange={(e) => handleZipSelect(e.target.files?.[0])}
                   />
+                  <input
+                    ref={folderInputRef}
+                    type="file"
+                    // @ts-expect-error webkitdirectory is supported by Chromium/Firefox/Safari for folder selection
+                    webkitdirectory=""
+                    directory=""
+                    multiple
+                    className="hidden"
+                    onChange={(e) => handleFolderSelect(e.target.files)}
+                  />
+
+                  {!uploadedZip && uploadedFolderFiles.length === 0 ? (
+                    <div
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setIsDragging(true);
+                      }}
+                      onDragLeave={() => setIsDragging(false)}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setIsDragging(false);
+                        const droppedFile = e.dataTransfer.files?.[0];
+                        if (droppedFile) handleZipSelect(droppedFile);
+                      }}
+                      className={`border-2 border-dashed rounded-xl p-6 text-center transition ${
+                        isDragging
+                          ? 'border-blue-500 bg-blue-50/70 dark:bg-blue-950/40'
+                          : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900'
+                      }`}
+                    >
+                      <Upload className="w-8 h-8 text-blue-600 mx-auto mb-2" />
+                      <p className="text-xs font-bold text-slate-800 dark:text-slate-200 mb-1">
+                        Drag & drop a repository .zip archive here
+                      </p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-4">
+                        Supports private/local codebases up to 150 MB (2,000 files). Automatically ignores node_modules, .git & .venv.
+                      </p>
+                      <div className="flex flex-wrap items-center justify-center gap-2.5">
+                        <button
+                          type="button"
+                          onClick={() => zipInputRef.current?.click()}
+                          className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition"
+                        >
+                          <FileArchive className="w-3.5 h-3.5" />
+                          <span>Choose .zip Archive</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => folderInputRef.current?.click()}
+                          className="px-3.5 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition border border-slate-200 dark:border-slate-700"
+                        >
+                          <FolderUp className="w-3.5 h-3.5" />
+                          <span>Select Local Folder</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-3.5 bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-800 rounded-xl flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="p-2 bg-emerald-50 dark:bg-emerald-950/60 rounded-lg text-emerald-600 flex-shrink-0">
+                          {uploadedZip ? <FileArchive className="w-5 h-5" /> : <FolderUp className="w-5 h-5" />}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                            {uploadedZip ? uploadedZip.name : uploadedFolderName}
+                          </p>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                            {uploadedZip
+                              ? `ZIP Archive • ${formatBytes(uploadedZip.size)}`
+                              : `Local Folder • ${uploadedFolderFiles.length} source files (${formatBytes(
+                                  uploadedFolderFiles.reduce((acc, f) => acc + f.size, 0)
+                                )})`}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={clearUpload}
+                        title="Remove uploaded repository"
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition cursor-pointer"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-xs font-semibold mb-1 text-slate-800 dark:text-slate-200">
+                      Scan Intensity
+                    </label>
+                    <select
+                      value={intensity}
+                      onChange={(e) => setIntensity(e.target.value as Intensity)}
+                      className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                    >
+                      <option value="QUICK">Quick (Fast SAST + Secrets only)</option>
+                      <option value="STANDARD">Standard (Full SAST, SCA, IaC, DB, AI, DPDP)</option>
+                      <option value="DEEP">Deep (Includes DAST & API Discovery)</option>
+                    </select>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold mb-1 text-slate-800 dark:text-slate-200">
-                    Scan Intensity
-                  </label>
-                  <select
-                    value={intensity}
-                    onChange={(e) => setIntensity(e.target.value as Intensity)}
-                    className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 outline-none"
-                  >
-                    <option value="QUICK">Quick (Fast SAST + Secrets only)</option>
-                    <option value="STANDARD">Standard (Full SAST, SCA, IaC, DB, AI, DPDP)</option>
-                    <option value="DEEP">Deep (Includes DAST & API Discovery)</option>
-                  </select>
-                </div>
-              </div>
+              )}
             </div>
           )}
 
